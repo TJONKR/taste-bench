@@ -142,10 +142,6 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
 export async function scrapeLinkedIn(url: string): Promise<LinkedInData> {
   const result: LinkedInData = {};
 
-  // Extract profile identifier from URL
-  const match = url.match(/linkedin\.com\/in\/([^\/\?]+)/);
-  const profileId = match ? match[1] : url;
-
   // Scrape posts (this actor works on free tier!)
   const posts = await runApifyActor("harvestapi~linkedin-profile-posts", {
     profileUrls: [url],
@@ -211,6 +207,7 @@ export async function scrapeWebsite(url: string): Promise<string> {
 }
 
 // Deep research: search the web for the person and scrape top results
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function deepResearch(name: string, twitter?: string, website?: string): Promise<{ url: string; title: string; snippet: string; content: string }[]> {
   const results: { url: string; title: string; snippet: string; content: string }[] = [];
   

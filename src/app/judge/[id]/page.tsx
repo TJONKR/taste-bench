@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 const STATUS_MAP: Record<string, { step: number; label: string }> = {
   "scraping-twitter": { step: 0, label: "Scraping 200 tweets from X..." },
@@ -47,7 +47,7 @@ export default function JudgePage() {
           if (scoreRes.ok) {
             if (!redirected) {
               redirected = true;
-              setCurrentStep(7);
+              setCurrentStep(8);
               setStatusText("Analysis complete!");
               setTimeout(() => router.push(`/score/${id}`), 1000);
             }
