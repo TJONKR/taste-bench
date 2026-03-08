@@ -1,101 +1,333 @@
-import Image from "next/image";
+"use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { ScoreResult } from "@/lib/types";
+
+type SortKey = "score" | "references" | "originality" | "consistency" | "communication" | "courage" | "selfAwareness";
+const dimKey = (k: SortKey) => k as keyof ScoreResult["dimensions"];
+
+function scoreColor(v: number): string {
+  if (v >= 70) return "text-score-high";
+  if (v >= 40) return "text-score-mid";
+  return "text-score-low";
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
+  const [form, setForm] = useState({ name: "", twitter: "", linkedin: "", website: "", description: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<ScoreResult[]>([]);
+  const [sortBy, setSortBy] = useState<SortKey>("score");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    fetch("/api/leaderboard").then(r => r.json()).then(setLeaderboard).catch(() => {});
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setError("Name is required"); return; }
+    if (!form.twitter && !form.linkedin && !form.website && !form.description) {
+      setError("Fill at least one field besides name"); return;
+    }
+    setLoading(true); setError("");
+    try {
+      const res = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      router.push(`/judge/${data.id}`);
+    } catch (e: any) {
+      setError(e.message); setLoading(false);
+    }
+  };
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const totalJudged = leaderboard.length;
+  const avgScore = totalJudged > 0 ? Math.round(leaderboard.reduce((s, r) => s + r.score, 0) / totalJudged) : 0;
+
+  const sorted = [...leaderboard].sort((a, b) => {
+    const av = sortBy === "score" ? a.score : (a.dimensions[dimKey(sortBy)]?.score ?? 0);
+    const bv = sortBy === "score" ? b.score : (b.dimensions[dimKey(sortBy)]?.score ?? 0);
+    return sortDir === "desc" ? bv - av : av - bv;
+  });
+
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) setSortDir(d => d === "desc" ? "asc" : "desc");
+    else { setSortBy(key); setSortDir("desc"); }
+  };
+
+  const rankLabel = (i: number) => {
+    if (i === 0) return "border-l-2 border-l-score-high";
+    if (i === 1) return "border-l-2 border-l-score-mid";
+    if (i === 2) return "border-l-2 border-l-[#CD7F32]";
+    return "";
+  };
+
+  const cols: { key: SortKey; label: string }[] = [
+    { key: "score", label: "Score" },
+    { key: "references", label: "Ref" },
+    { key: "originality", label: "Orig" },
+    { key: "consistency", label: "Cons" },
+    { key: "communication", label: "Comm" },
+    { key: "courage", label: "Cour" },
+    { key: "selfAwareness", label: "Self" },
+  ];
+
+  // Featured evaluation (highest scored)
+  const featured = leaderboard.length > 0 ? [...leaderboard].sort((a, b) => b.score - a.score)[0] : null;
+
+  return (
+    <motion.main
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="min-h-screen"
+    >
+      {/* Hero Section */}
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-20 text-center">
+        <motion.h1
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="font-serif text-5xl sm:text-6xl lg:text-7xl font-bold text-ink tracking-tight"
+        >
+          The Taste Bench
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mt-4 text-ink/40 text-lg sm:text-xl font-light"
+        >
+          How good is your taste, really?
+        </motion.p>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="mt-8"
+        >
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="text-accent hover:text-accent-hover transition text-sm font-medium tracking-wide inline-flex items-center gap-1.5"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            {showForm ? "Close" : "Get Judged"} <span className="text-base">→</span>
+          </button>
+        </motion.div>
+
+        {totalJudged > 0 && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="mt-3 text-ink/25 text-xs tracking-wide"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+            {totalJudged} evaluated · avg {avgScore}/100 · 6 dimensions · no appeals
+          </motion.p>
+        )}
+      </section>
+
+      {/* Collapsible Submit Form */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="max-w-2xl mx-auto px-6 overflow-hidden"
+          >
+            <div className="mb-12 p-8 bg-card-bg border border-border rounded-xl shadow-card">
+              <h2 className="font-serif text-lg font-semibold text-ink mb-5">Submit yourself for evaluation</h2>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input placeholder="Name *" value={form.name} onChange={set("name")} required
+                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
+                <input placeholder="@twitter or x.com/handle" value={form.twitter} onChange={set("twitter")}
+                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
+                <input placeholder="LinkedIn profile URL" value={form.linkedin} onChange={set("linkedin")}
+                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
+                <input placeholder="Website / Portfolio URL" value={form.website} onChange={set("website")}
+                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
+                <textarea placeholder="Anything else about yourself..." value={form.description} onChange={set("description")} rows={2}
+                  className="sm:col-span-2 px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition resize-none text-sm text-ink placeholder:text-ink/30" />
+                {error && <p className="text-score-low text-sm sm:col-span-2">{error}</p>}
+                <button type="submit" disabled={loading}
+                  className="sm:col-span-2 py-3 bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg font-medium text-sm text-white transition-colors">
+                  {loading ? "Submitting..." : "Run Deep Analysis →"}
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Leaderboard Section */}
+      <section className="max-w-6xl mx-auto px-6 pb-16">
+        {leaderboard.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-ink/30 text-lg font-light">No one has been judged yet.</p>
+            <button onClick={() => setShowForm(true)} className="mt-4 text-accent hover:text-accent-hover text-sm transition">
+              Be the first →
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-4 px-3 text-ink/30 text-[11px] uppercase tracking-widest font-normal w-12">#</th>
+                  <th className="text-left py-4 px-3 text-ink/30 text-[11px] uppercase tracking-widest font-normal">Name</th>
+                  {cols.map(c => (
+                    <th key={c.key} onClick={() => handleSort(c.key)}
+                      className="text-right py-4 px-3 text-ink/30 text-[11px] uppercase tracking-widest font-normal cursor-pointer hover:text-ink transition whitespace-nowrap select-none">
+                      {c.label} {sortBy === c.key ? (sortDir === "desc" ? "↓" : "↑") : ""}
+                    </th>
+                  ))}
+                  <th className="text-left py-4 px-3 text-ink/30 text-[11px] uppercase tracking-widest font-normal hidden lg:table-cell">Title</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((s, i) => (
+                  <motion.tr
+                    key={s.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.04 }}
+                    onClick={() => router.push(`/score/${s.id}`)}
+                    className={`border-b border-border/50 cursor-pointer hover:bg-ink/[0.02] transition ${rankLabel(i)}`}
+                  >
+                    <td className="py-4 px-3 font-serif font-bold text-ink/40 text-center">{i + 1}</td>
+                    <td className="py-4 px-3">
+                      <div className="flex items-center gap-3">
+                        <img src={s.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border border-border" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-ink truncate max-w-[160px]">{s.name}</p>
+                        </div>
+                      </div>
+                    </td>
+                    {cols.map(c => {
+                      const v = c.key === "score" ? s.score : (s.dimensions[dimKey(c.key)]?.score ?? 0);
+                      return (
+                        <td key={c.key} className={`py-4 px-3 text-right font-serif font-bold ${c.key === "score" ? "text-base" : "text-xs"} ${scoreColor(v)}`}>
+                          {v}
+                        </td>
+                      );
+                    })}
+                    <td className="py-4 px-3 text-ink/35 text-xs italic truncate max-w-[200px] hidden lg:table-cell">{s.title}</td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* What Is Taste? — Manifesto */}
+      <section className="max-w-3xl mx-auto px-6 py-20 border-t border-border">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+          <h2 className="font-serif text-3xl font-semibold text-center mb-8">What Is Taste?</h2>
+          <div className="space-y-4 text-ink/50 text-[15px] leading-relaxed">
+            <p>
+              Taste is the invisible hand behind every choice you make in public. It&apos;s not about what you like — it&apos;s about <em className="text-ink/70">how</em> you like it, <em className="text-ink/70">why</em> you like it, and whether those choices form a coherent identity.
+            </p>
+            <p>
+              In the digital age, taste is expressed through what you post and what you don&apos;t. What you share, retweet, and amplify. How you write — word choice, economy, tone. Your visual aesthetic. Your references. Your opinions.
+            </p>
+            <p>
+              Everyone has taste. Most people&apos;s is unconscious. The Taste Bench makes it visible.
+            </p>
+            <p className="text-ink/30 text-sm pt-2">
+              We evaluate across six dimensions: References, Originality, Consistency, Communication, Courage, and Self-Awareness.
+              {" "}
+              <a href="/methodology" className="text-accent hover:text-accent-hover transition underline underline-offset-2">Read our full methodology →</a>
+            </p>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* How It Works */}
+      {leaderboard.length > 0 && (
+        <section className="max-w-4xl mx-auto px-6 py-20 border-t border-border">
+          <motion.h2
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="font-serif text-2xl font-semibold text-center mb-12"
+          >
+            How It Works
+          </motion.h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { num: "01", title: "Submit", desc: "Share your name and public profiles — Twitter, LinkedIn, website, anything." },
+              { num: "02", title: "Deep Research", desc: "AI scrapes 200+ posts, captures screenshots, and researches your digital footprint." },
+              { num: "03", title: "The Verdict", desc: "A brutally honest taste audit across 6 dimensions. No appeals, no refunds." },
+            ].map((step, i) => (
+              <motion.div
+                key={step.num}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="text-center"
+              >
+                <span className="font-serif text-4xl font-bold text-ink/10">{step.num}</span>
+                <h3 className="font-serif text-lg font-semibold mt-2 mb-2">{step.title}</h3>
+                <p className="text-ink/40 text-sm leading-relaxed">{step.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Featured Evaluation */}
+      {featured && (
+        <section className="max-w-4xl mx-auto px-6 py-16 border-t border-border">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <p className="text-[11px] uppercase tracking-widest text-ink/25 mb-6 text-center">Highest Scored</p>
+            <div
+              onClick={() => router.push(`/score/${featured.id}`)}
+              className="bg-card-bg border border-border rounded-xl p-8 shadow-card hover:shadow-card-hover transition cursor-pointer"
+            >
+              <div className="flex items-start gap-6">
+                <img src={featured.avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover border border-border" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-4">
+                    <h3 className="font-serif text-xl font-semibold">{featured.name}</h3>
+                    <span className="font-serif text-2xl font-bold text-score-high">{featured.score}</span>
+                  </div>
+                  <p className="font-serif text-sm italic text-ink/40 mt-1">&ldquo;{featured.title}&rdquo;</p>
+                  <p className="text-sm text-ink/50 mt-3 leading-relaxed line-clamp-3">{featured.verdict}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+      )}
+
+      {/* Footer */}
+      <footer className="max-w-6xl mx-auto px-6 py-12 border-t border-border text-center">
+        <p className="text-ink/20 text-xs tracking-wide">
+          <a href="/methodology" className="hover:text-ink/40 transition">Methodology</a>
+          {" · "}
+          {totalJudged} evaluation{totalJudged !== 1 ? "s" : ""} and counting
+          {" · "}
+          <span>Built with Claude</span>
+        </p>
       </footer>
-    </div>
+    </motion.main>
   );
 }
