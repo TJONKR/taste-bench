@@ -9,9 +9,10 @@ const STATUS_MAP: Record<string, { step: number; label: string }> = {
   "scraping-website": { step: 2, label: "Fetching website content..." },
   "deep-research": { step: 3, label: "Researching articles & mentions..." },
   "capturing-screenshots": { step: 4, label: "Capturing screenshots..." },
-  "analyzing": { step: 5, label: "Running deep taste analysis..." },
-  "generating-report": { step: 6, label: "Generating research report..." },
-  "complete": { step: 7, label: "Done!" },
+  "verifying-data": { step: 5, label: "Verifying & cleaning data..." },
+  "analyzing": { step: 6, label: "Scoring taste dimensions..." },
+  "writing-report": { step: 7, label: "Writing editorial report..." },
+  "complete": { step: 8, label: "Done!" },
 };
 
 const steps = [
@@ -20,8 +21,9 @@ const steps = [
   { label: "Fetching website content..." },
   { label: "Deep research — articles & mentions..." },
   { label: "Capturing screenshots..." },
-  { label: "Running deep taste analysis..." },
-  { label: "Generating research report..." },
+  { label: "Verifying & cleaning data..." },
+  { label: "Scoring taste dimensions..." },
+  { label: "Writing editorial report..." },
 ];
 
 export default function JudgePage() {

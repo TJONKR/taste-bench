@@ -9,7 +9,7 @@ import { getDb } from "./db";
 interface PendingJob {
   id: string;
   input: any;
-  status: "scraping-twitter" | "scraping-linkedin" | "scraping-website" | "deep-research" | "capturing-screenshots" | "analyzing" | "generating-report" | "complete" | "error";
+  status: "scraping-twitter" | "scraping-linkedin" | "scraping-website" | "deep-research" | "capturing-screenshots" | "verifying-data" | "analyzing" | "writing-report" | "generating-report" | "complete" | "error";
   error?: string;
   createdAt: string;
 }
