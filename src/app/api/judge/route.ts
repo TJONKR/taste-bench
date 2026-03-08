@@ -116,7 +116,7 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
     const scoreResult: ScoreResult = {
       id,
       name,
-      score: report.score,
+      score: Math.round(report.score),
       title: report.title,
       verdict: report.verdict,
       dimensions: report.dimensions,

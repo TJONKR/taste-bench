@@ -20,7 +20,7 @@ export async function runResearcher(
 ): Promise<VerifiedData> {
   const message = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: [
       {
         role: "user",
@@ -39,6 +39,7 @@ VERIFICATION RULES:
 5. **Web research relevance**: For each web research result, assess whether it's actually about this specific person or a different person with the same name.
 6. **Deduplication**: Remove duplicate content, clean up noise, normalize formatting.
 7. **Job titles and roles**: Preserve exact titles/headlines as stated. Never invent or reinterpret them.
+8. **Be concise**: Keep the BEST 50 original tweets max, 20 retweets max, 20 quote tweets max. Drop generic/low-signal content. Quality over quantity — the analyst needs signal, not noise.
 
 Output ONLY valid JSON matching this exact structure:
 {
@@ -101,7 +102,7 @@ export async function runAnalyst(
 ): Promise<AnalysisResult> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: "user",
@@ -210,7 +211,7 @@ export async function runWriter(
 ): Promise<TasteReport> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [
       {
         role: "user",
