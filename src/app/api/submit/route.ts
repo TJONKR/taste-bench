@@ -18,7 +18,8 @@ export async function POST(req: Request) {
     await savePending(id, { name, twitter, linkedin, website, description });
 
     // Fire off the judging in the background (don't await)
-    fetch(`${req.headers.get("origin") || "http://localhost:3003"}/api/judge`, {
+    const origin = req.headers.get("origin") || `http://localhost:${process.env.PORT || 3000}`;
+    fetch(`${origin}/api/judge`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, name, twitter, linkedin, website, description }),
