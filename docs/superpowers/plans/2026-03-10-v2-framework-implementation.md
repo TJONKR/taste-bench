@@ -4,7 +4,7 @@
 
 **Goal:** Replace the v1 scoring framework (6 old dimensions, old weights) with the v2 framework (6 new dimensions, 4 taste levels, multi-lens evaluation, level-weighted scoring, profile-first reporting) as defined in `docs/superpowers/specs/2026-03-10-taste-dimensions-v2-design.md`.
 
-**Architecture:** The 3-agent pipeline (Researcher → Analyst → Writer) stays the same structurally, but the Analyst and Writer prompts are completely rewritten. Types, database, and frontend are updated to use new dimension names, level fields, and decimal scoring.
+**Architecture:** The pipeline expands from 3 agents to 8: Researcher → 6 Dimension Analysts (one per dimension, run in parallel) → Writer. Each dimension analyst is a specialized agent with its full multi-lens evaluation framework (levels, tensions, philosopher checks). Types, database, and frontend are updated to use new dimension names, level fields, and decimal scoring.
 
 **Tech Stack:** Next.js 14, TypeScript, SQLite (better-sqlite3), Anthropic SDK, Tailwind CSS, Framer Motion
 
@@ -105,20 +105,30 @@ export interface VerifiedData {
   researcherNotes: string;
 }
 
-// Agent 2 output: scores + evidence + levels
+// Single dimension agent output
+export interface DimensionResult {
+  score: number; // 0.00-100.00
+  level: TasteLevel;
+  evidence: string[]; // 2-4 specific quotes or observations
+  reasoning: string;
+  tensionPositioning: string; // where they sit on the dimension's tension spectrums
+  philosopherHighlights: string; // most relevant philosopher check findings
+}
+
+// Assembled from 6 dimension agent outputs + computed fields
 export interface AnalysisResult {
   dimensions: {
-    curation: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
-    restraint: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
-    originality: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
-    conviction: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
-    identity: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
-    selfAwareness: { score: number; level: TasteLevel; evidence: string[]; reasoning: string };
+    curation: DimensionResult;
+    restraint: DimensionResult;
+    originality: DimensionResult;
+    conviction: DimensionResult;
+    identity: DimensionResult;
+    selfAwareness: DimensionResult;
   };
   compositeScore: number; // level-weighted: (Cur*0.125)+(Res*0.125)+(Ori*0.175)+(Con*0.175)+(Id*0.20)+(SA*0.20)
   levelProfile: string; // e.g., "L2-L3-L3-L2-L4-L3"
   overallLevel: string; // e.g., "Level 3: Vision"
-  patterns: string[];
+  patterns: string[]; // computed by comparing across dimension results
   contradictions: string[];
   standoutMoments: string[];
 }
@@ -360,70 +370,256 @@ git commit -m "refactor: update leaderboard layer for v2 fields (levelProfile, o
 
 ---
 
-## Chunk 2: Agent Prompts
+## Chunk 2: Agent Architecture — 6 Specialized Dimension Agents
 
-This is the most important and complex chunk. The Analyst prompt is built directly from the design spec's dimension sections.
+This is the most important and complex chunk. Instead of one Analyst agent with a massive prompt, we create **6 specialized agents** — one per dimension — each with its full multi-lens evaluation framework. They run in parallel for speed, and each is deeply focused on its dimension.
 
-### Task 4: Rewrite Analyst Prompt
+### Pipeline Architecture
+
+```
+Raw scraped data
+    |
+    v
+[RESEARCHER] — verify, clean, organize (Haiku — unchanged)
+    |
+    v
+Verified Data
+    |
+    v  (all 6 run in parallel via Promise.all)
+[CURATION ANALYST]     → DimensionResult
+[RESTRAINT ANALYST]    → DimensionResult
+[ORIGINALITY ANALYST]  → DimensionResult
+[CONVICTION ANALYST]   → DimensionResult
+[IDENTITY ANALYST]     → DimensionResult
+[SELF-AWARENESS ANALYST] → DimensionResult
+    |
+    v  (assembled + computed)
+AnalysisResult (6 dimensions + compositeScore + levelProfile + overallLevel)
+    |
+    v
+[WRITER] — editorial prose (Sonnet)
+    |
+    v
+TasteReport
+```
+
+### Task 4: Create Dimension Agent Prompts
 
 **Files:**
-- Modify: `src/lib/agents.ts` (the `runAnalyst` function, lines 98-205)
+- Create: `src/lib/dimension-agents.ts` (6 specialized agent functions)
+- Modify: `src/lib/agents.ts` (remove old `runAnalyst`, add assembly logic)
 
-**Reference:** Read the full dimension definitions from the design spec at `docs/superpowers/specs/2026-03-10-taste-dimensions-v2-design.md`. Each dimension's Level Detection, Multi-Lens Evaluation, and Scoring Anchors sections are the prompt blueprint.
+**Reference:** The design spec at `docs/superpowers/specs/2026-03-10-taste-dimensions-v2-design.md` contains the complete prompt blueprint for each dimension under its "Multi-Lens Evaluation" sections.
 
 - [ ] **Step 1: Read the design spec dimensions**
 
-Read `docs/superpowers/specs/2026-03-10-taste-dimensions-v2-design.md` to have the full framework fresh.
+Read `docs/superpowers/specs/2026-03-10-taste-dimensions-v2-design.md` fully to have the framework fresh.
 
-- [ ] **Step 2: Read current agents.ts**
+- [ ] **Step 2: Create `src/lib/dimension-agents.ts`**
 
-Read `src/lib/agents.ts` to confirm current analyst prompt structure.
+This file contains 6 exported functions, one per dimension. Each function:
+- Takes `name: string` and `verifiedData: VerifiedData` as input
+- Calls Claude Sonnet 4.6 with a focused prompt for that single dimension
+- Returns a `DimensionResult` (score, level, evidence, reasoning, tensionPositioning, philosopherHighlights)
 
-- [ ] **Step 3: Rewrite the runAnalyst function**
+**Shared structure for each agent function:**
 
-Replace the entire `runAnalyst` function. The new prompt must include for each of the 6 dimensions:
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+import { VerifiedData, DimensionResult } from "./types";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function parseJsonResponse(text: string): any {
+  let jsonText = text.trim();
+  if (jsonText.startsWith("```")) {
+    jsonText = jsonText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+  }
+  return JSON.parse(jsonText);
+}
+```
+
+**Each dimension function follows this pattern** (example for Curation):
+
+```typescript
+export async function analyzeCuration(name: string, verifiedData: VerifiedData): Promise<DimensionResult> {
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [{
+      role: "user",
+      content: `You are the CURATION specialist for The Taste Bench...
+
+[FULL prompt content from the spec's Curation section:
 - Core question
-- Level detection criteria (L2/L3/L4)
-- The Choosing lens, Tensions, and Philosopher checks
-- Scoring anchors (0-29, 30-49, 50-69, 70-89, 90-100)
-- The new composite formula with weights (0.125, 0.125, 0.175, 0.175, 0.20, 0.20)
+- Level Detection table (L2/L3/L4)
+- The Choosing Lens
+- The Tensions (breadth vs depth, mainstream vs niche, discovery vs loyalty)
+- Philosopher Checks (Hume, Bourdieu, Rubin, Sontag)
+- Observable Evidence list
+- Scoring Anchors (0-29 through 90-100)
+- Philosophical safeguards (Bourdieu check, Style check, etc.)]
 
-The prompt will be long (~3000-4000 words). This is intentional — depth per dimension is the core innovation.
+Output ONLY valid JSON:
+{
+  "score": <0.00-100.00>,
+  "level": "<L2|L3|L4>",
+  "evidence": ["<specific quote or observation>", "<...>"],
+  "reasoning": "<detailed explanation>",
+  "tensionPositioning": "<where they sit on the tension spectrums>",
+  "philosopherHighlights": "<most relevant philosopher check findings>"
+}
 
-Key structural changes in the output JSON:
-- Dimension keys: `curation`, `restraint`, `originality`, `conviction`, `identity`, `selfAwareness`
-- Each dimension includes `level` field ("L2"/"L3"/"L4")
-- New top-level fields: `levelProfile`, `overallLevel`
-- `compositeScore` uses new weights
-- Score precision: instruct to use two decimal places (e.g., 73.42)
+Verified data for "${name}":
+${JSON.stringify(verifiedData, null, 2)}`
+    }],
+  });
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response from curation analyst");
+  return parseJsonResponse(content.text);
+}
+```
 
-Include the overall level determination rules from spec:
-- 4+ dimensions at L4 → "Level 4: Identity"
-- 4+ dimensions at L3+ → "Level 3: Vision"
-- 3 at L3+ AND both Identity+Self-Awareness at L3+ → "Level 3: Vision"
-- Otherwise → "Level 2: Discrimination"
+**Create all 6 functions following the same pattern:**
 
-Include the philosophical safeguards as instructions:
-- Bourdieu check on every dimension
-- Style ≠ Taste check
-- Performance vs genuine check
-- Camp/irony check
+1. `analyzeCuration(name, verifiedData)` — Full Curation section from spec
+2. `analyzeRestraint(name, verifiedData)` — Full Restraint section from spec
+3. `analyzeOriginality(name, verifiedData)` — Full Originality section from spec
+4. `analyzeConviction(name, verifiedData)` — Full Conviction section from spec
+5. `analyzeIdentity(name, verifiedData)` — Full Identity section from spec
+6. `analyzeSelfAwareness(name, verifiedData)` — Full Self-Awareness section from spec
 
-Also include the max_tokens increase — the analyst now outputs more structured data. Change from 8192 to 16384.
+**Critical: Copy the FULL dimension definitions from the spec into each prompt.** Each agent gets:
+- Its core question
+- Its level detection table
+- Its choosing lens
+- Its tension spectrums
+- Its philosopher checks (only the ones relevant to this dimension)
+- Its observable evidence list
+- Its scoring anchors
+- The global philosophical safeguards (Bourdieu check, Style check, Performance check)
 
-**Important:** Copy the full dimension definitions from the spec. Don't summarize them. The spec IS the prompt blueprint.
+**Model choice:** All 6 use `claude-sonnet-4-6` with `max_tokens: 4096` (each only outputs one dimension result, so 4096 is sufficient).
 
-- [ ] **Step 4: Verify TypeScript compiles for agents.ts**
+- [ ] **Step 3: Create assembly function in agents.ts**
 
-Run: `npx tsc --noEmit 2>&1 | grep agents.ts`
+Add a function that runs all 6 in parallel and assembles the `AnalysisResult`:
 
-Expected: No errors from agents.ts.
+```typescript
+import {
+  analyzeCuration, analyzeRestraint, analyzeOriginality,
+  analyzeConviction, analyzeIdentity, analyzeSelfAwareness
+} from "./dimension-agents";
 
-- [ ] **Step 5: Commit**
+const WEIGHTS = {
+  curation: 0.125,
+  restraint: 0.125,
+  originality: 0.175,
+  conviction: 0.175,
+  identity: 0.20,
+  selfAwareness: 0.20,
+};
+
+function computeOverallLevel(dimensions: AnalysisResult["dimensions"]): string {
+  const levels = Object.values(dimensions).map(d => d.level);
+  const l4Count = levels.filter(l => l === "L4").length;
+  const l3PlusCount = levels.filter(l => l === "L3" || l === "L4").length;
+  const topDimsAtL3Plus = (dimensions.identity.level === "L3" || dimensions.identity.level === "L4")
+    && (dimensions.selfAwareness.level === "L3" || dimensions.selfAwareness.level === "L4");
+
+  if (l4Count >= 4) return "Level 4: Identity";
+  if (l3PlusCount >= 4) return "Level 3: Vision";
+  if (l3PlusCount >= 3 && topDimsAtL3Plus) return "Level 3: Vision";
+  return "Level 2: Discrimination";
+}
+
+export async function runDimensionAnalysts(
+  name: string,
+  verifiedData: VerifiedData
+): Promise<AnalysisResult> {
+  // Run all 6 dimension agents in parallel
+  const [curation, restraint, originality, conviction, identity, selfAwareness] =
+    await Promise.all([
+      analyzeCuration(name, verifiedData),
+      analyzeRestraint(name, verifiedData),
+      analyzeOriginality(name, verifiedData),
+      analyzeConviction(name, verifiedData),
+      analyzeIdentity(name, verifiedData),
+      analyzeSelfAwareness(name, verifiedData),
+    ]);
+
+  const dimensions = { curation, restraint, originality, conviction, identity, selfAwareness };
+
+  // Compute composite score with level-weighted formula
+  const compositeScore = parseFloat((
+    curation.score * WEIGHTS.curation +
+    restraint.score * WEIGHTS.restraint +
+    originality.score * WEIGHTS.originality +
+    conviction.score * WEIGHTS.conviction +
+    identity.score * WEIGHTS.identity +
+    selfAwareness.score * WEIGHTS.selfAwareness
+  ).toFixed(2));
+
+  // Build level profile
+  const levelProfile = [
+    curation.level, restraint.level, originality.level,
+    conviction.level, identity.level, selfAwareness.level,
+  ].join("-");
+
+  const overallLevel = computeOverallLevel(dimensions);
+
+  // Cross-dimensional patterns (computed from comparing results)
+  const patterns: string[] = [];
+  const contradictions: string[] = [];
+  const standoutMoments: string[] = [];
+
+  // Extract standout moments from dimension evidence
+  for (const [key, dim] of Object.entries(dimensions)) {
+    if (dim.score >= 85) {
+      standoutMoments.push(`Exceptional ${key}: ${dim.evidence[0]}`);
+    }
+    if (dim.score <= 30) {
+      patterns.push(`Significant gap in ${key}: ${dim.reasoning.slice(0, 100)}`);
+    }
+  }
+
+  // Detect level contradictions
+  const levelValues = Object.entries(dimensions);
+  const highLevelDims = levelValues.filter(([, d]) => d.level === "L4");
+  const lowLevelDims = levelValues.filter(([, d]) => d.level === "L2");
+  if (highLevelDims.length > 0 && lowLevelDims.length > 0) {
+    contradictions.push(
+      `Operates at ${highLevelDims[0][1].level} on ${highLevelDims[0][0]} but ${lowLevelDims[0][1].level} on ${lowLevelDims[0][0]}`
+    );
+  }
+
+  return {
+    dimensions,
+    compositeScore,
+    levelProfile,
+    overallLevel,
+    patterns,
+    contradictions,
+    standoutMoments,
+  };
+}
+```
+
+- [ ] **Step 4: Remove old `runAnalyst` function from agents.ts**
+
+Delete the old `runAnalyst` function entirely. Keep `runResearcher` and `runWriter`.
+
+- [ ] **Step 5: Verify TypeScript compiles**
+
+Run: `npx tsc --noEmit 2>&1 | head -30`
+
+Expected: May show errors in judge/route.ts (still calling old `runAnalyst`). This is expected — fixed in Task 6.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/agents.ts
-git commit -m "feat: rewrite analyst prompt with v2 multi-lens framework (6 dimensions, 4 levels, philosopher checks)"
+git add src/lib/dimension-agents.ts src/lib/agents.ts
+git commit -m "feat: add 6 specialized dimension agents with multi-lens evaluation (parallel execution)"
 ```
 
 ---
@@ -431,21 +627,21 @@ git commit -m "feat: rewrite analyst prompt with v2 multi-lens framework (6 dime
 ### Task 5: Rewrite Writer Prompt
 
 **Files:**
-- Modify: `src/lib/agents.ts` (the `runWriter` function, lines 207-277)
+- Modify: `src/lib/agents.ts` (the `runWriter` function)
 
 - [ ] **Step 1: Rewrite the runWriter function**
 
-Update to handle new dimension names, level fields, and profile-first output structure. Key changes:
+Update to handle new dimension names, level fields, and profile-first output structure. The writer now receives richer input — each dimension has `tensionPositioning` and `philosopherHighlights` that should be woven into the editorial prose.
 
+Key changes:
 - Reference new dimension names in the output JSON template
 - Pass through `levelProfile` and `overallLevel` from analysis
 - Pass through each dimension's `level` field
+- Instruct to weave `tensionPositioning` and `philosopherHighlights` from each dimension into the prose paragraphs
 - Update title tier examples for v2 voice
-- Add instruction to weave tension positioning and philosopher highlights into prose
-- Add "score as reflection" framing instruction
-- Add data sources transparency note
+- Add "score as reflection" framing: "Your job is to write a reflection that teaches people about their own taste, not a report card"
 - Score precision: pass through decimal scores exactly
-- Add instruction for level map headline in verdict section
+- Add instruction for level map headline
 
 Output JSON must include:
 ```json
@@ -456,16 +652,16 @@ Output JSON must include:
   "levelProfile": "<from analyst>",
   "overallLevel": "<from analyst>",
   "dimensions": {
-    "curation": { "score": <exact from analyst>, "level": "<from analyst>", "note": "<full paragraph>" },
+    "curation": { "score": <exact>, "level": "<exact>", "note": "<full paragraph weaving in tension + philosopher insights>" },
     "restraint": { ... },
     "originality": { ... },
     "conviction": { ... },
     "identity": { ... },
     "selfAwareness": { ... }
   },
-  "tasteDNA": "<5-8 sentences, reference the 4 levels>",
+  "tasteDNA": "<5-8 sentences, reference the 4 levels and what drives their taste>",
   "crossPlatformConsistency": "<paragraph, note which platforms were available>",
-  "recommendations": ["<rec 1>", "<rec 2>", "<rec 3>"]
+  "recommendations": ["<rec 1>", "<rec 2>", "<rec 3> — focused on moving to the next level"]
 }
 ```
 
@@ -473,13 +669,13 @@ Output JSON must include:
 
 Run: `npx tsc --noEmit 2>&1 | grep agents.ts`
 
-Expected: No errors.
+Expected: No errors from agents.ts.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add src/lib/agents.ts
-git commit -m "feat: rewrite writer prompt for v2 (level map, new dimensions, reflection framing)"
+git commit -m "feat: rewrite writer prompt for v2 (level map, tension/philosopher prose, reflection framing)"
 ```
 
 ---
@@ -495,7 +691,34 @@ git commit -m "feat: rewrite writer prompt for v2 (level map, new dimensions, re
 
 Read `src/app/api/judge/route.ts` to confirm current state.
 
-- [ ] **Step 2: Update the ScoreResult construction**
+- [ ] **Step 2: Update imports**
+
+Replace the old `runAnalyst` import with the new `runDimensionAnalysts`:
+
+```typescript
+import { runResearcher, runWriter } from "@/lib/agents";
+import { runDimensionAnalysts } from "@/lib/agents"; // replaces runAnalyst
+```
+
+- [ ] **Step 3: Update the agent pipeline section**
+
+Replace the old 3-step agent pipeline with the new architecture. The status updates should reflect the 6 parallel analysts:
+
+```typescript
+// Step 6: Agent pipeline - Researcher
+await updatePendingStatus(id, "verifying-data");
+const verifiedData = await runResearcher(name, context);
+
+// Step 7: Agent pipeline - 6 Dimension Analysts (parallel)
+await updatePendingStatus(id, "analyzing");
+const analysis = await runDimensionAnalysts(name, verifiedData);
+
+// Step 8: Agent pipeline - Writer
+await updatePendingStatus(id, "writing-report");
+const report = await runWriter(name, analysis);
+```
+
+- [ ] **Step 4: Update the ScoreResult construction**
 
 Key changes:
 - Remove `Math.round(report.score)` — use `report.score` directly (decimal)
@@ -504,7 +727,6 @@ Key changes:
 - Add `dataSources` array built from available inputs
 
 ```typescript
-// Build dataSources from what was actually available
 const dataSources: string[] = [];
 if (twitterData) dataSources.push("twitter");
 if (linkedinData) dataSources.push("linkedin");
@@ -536,17 +758,17 @@ const scoreResult: ScoreResult = {
 };
 ```
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [ ] **Step 5: Verify TypeScript compiles**
 
 Run: `npx tsc --noEmit 2>&1 | head -30`
 
 Expected: No errors from judge/route.ts.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/app/api/judge/route.ts
-git commit -m "refactor: update judge route for v2 (decimal scores, level profile, data sources)"
+git commit -m "refactor: update judge route for v2 (6 parallel analysts, decimal scores, level profile)"
 ```
 
 ---
@@ -947,11 +1169,12 @@ git push
 
 | File | Action | What Changes |
 |------|--------|-------------|
-| `src/lib/types.ts` | Rewrite | New dimension names, level fields, decimal scores, dataSources |
+| `src/lib/types.ts` | Rewrite | New dimension names, DimensionResult type, level fields, decimal scores, dataSources |
 | `src/lib/db.ts` | Modify | REAL score, new columns (level_profile, overall_level, data_sources) |
 | `src/lib/leaderboard.ts` | Modify | Row mappers for new fields, both SQLite and Supabase |
-| `src/lib/agents.ts` | Major rewrite | Analyst prompt (full multi-lens framework), Writer prompt (level-aware) |
-| `src/app/api/judge/route.ts` | Modify | Remove Math.round, add level/dataSources fields |
+| `src/lib/dimension-agents.ts` | **Create** | 6 specialized dimension agent functions (one per dimension, full multi-lens prompts) |
+| `src/lib/agents.ts` | Major rewrite | Remove old `runAnalyst`, add `runDimensionAnalysts` assembly function, rewrite Writer prompt |
+| `src/app/api/judge/route.ts` | Modify | Use `runDimensionAnalysts`, remove Math.round, add level/dataSources fields |
 | `src/components/DimensionBar.tsx` | Modify | New dimension labels, level badge, decimal display |
 | `src/components/ScoreCard.tsx` | Modify | Level map display, level props, data sources |
 | `src/components/ScoreRing.tsx` | Modify | Decimal score display |
