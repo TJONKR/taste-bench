@@ -1,5 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { VerifiedData, AnalysisResult, TasteReport } from "./types";
+import {
+  analyzeCuration,
+  analyzeRestraint,
+  analyzeOriginality,
+  analyzeConviction,
+  analyzeIdentity,
+  analyzeSelfAwareness,
+} from "./dimension-agents";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -95,113 +103,118 @@ ${rawContext}`,
   return parseJsonResponse(content.text);
 }
 
-// Agent 2: Scoring and evidence extraction
-export async function runAnalyst(
+// Agent 2: 6 parallel dimension analysts assembled into AnalysisResult
+const WEIGHTS = {
+  curation: 0.125,
+  restraint: 0.125,
+  originality: 0.175,
+  conviction: 0.175,
+  identity: 0.20,
+  selfAwareness: 0.20,
+};
+
+function computeOverallLevel(
+  dimensions: AnalysisResult["dimensions"]
+): string {
+  const levels = Object.values(dimensions).map((d) => d.level);
+  const l4Count = levels.filter((l) => l === "L4").length;
+  const l3PlusCount = levels.filter((l) => l === "L3" || l === "L4").length;
+  const topDimsAtL3Plus =
+    (dimensions.identity.level === "L3" ||
+      dimensions.identity.level === "L4") &&
+    (dimensions.selfAwareness.level === "L3" ||
+      dimensions.selfAwareness.level === "L4");
+
+  if (l4Count >= 4) return "Level 4: Identity";
+  if (l3PlusCount >= 4) return "Level 3: Vision";
+  if (l3PlusCount >= 3 && topDimsAtL3Plus) return "Level 3: Vision";
+  return "Level 2: Discrimination";
+}
+
+export async function runDimensionAnalysts(
   name: string,
   verifiedData: VerifiedData
 ): Promise<AnalysisResult> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    messages: [
-      {
-        role: "user",
-        content: `You are the scoring analyst for The Taste Bench — the internet's taste evaluation platform.
+  const [
+    curation,
+    restraint,
+    originality,
+    conviction,
+    identity,
+    selfAwareness,
+  ] = await Promise.all([
+    analyzeCuration(name, verifiedData),
+    analyzeRestraint(name, verifiedData),
+    analyzeOriginality(name, verifiedData),
+    analyzeConviction(name, verifiedData),
+    analyzeIdentity(name, verifiedData),
+    analyzeSelfAwareness(name, verifiedData),
+  ]);
 
-You receive verified, clean data about "${name}" and must score 6 dimensions independently. Be rigorous and honest — do NOT inflate scores. Your job is structured scoring and evidence, NOT prose writing.
+  const dimensions = {
+    curation,
+    restraint,
+    originality,
+    conviction,
+    identity,
+    selfAwareness,
+  };
 
-IMPORTANT DISTINCTIONS:
-- Retweets reveal taste in CURATION, not authorship. They show what someone amplifies, not what they think.
-- Original tweets reveal voice, opinions, and communication style.
-- Quote tweets show how they engage with others' ideas.
-- Data confidence from researcher: ${verifiedData.confidence}
-${verifiedData.researcherNotes ? `- Researcher notes: ${verifiedData.researcherNotes}` : ""}
+  const compositeScore = parseFloat(
+    (
+      curation.score * WEIGHTS.curation +
+      restraint.score * WEIGHTS.restraint +
+      originality.score * WEIGHTS.originality +
+      conviction.score * WEIGHTS.conviction +
+      identity.score * WEIGHTS.identity +
+      selfAwareness.score * WEIGHTS.selfAwareness
+    ).toFixed(2)
+  );
 
-SCORING RUBRICS — score each dimension independently:
+  const levelProfile = [
+    curation.level,
+    restraint.level,
+    originality.level,
+    conviction.level,
+    identity.level,
+    selfAwareness.level,
+  ].join("-");
 
-**References** (weight 15%): Quality and originality of intellectual inputs
-- 90-100: Consistently surfaces things others haven't seen. Cross-domain references. Primary sources.
-- 70-89: Good mix of mainstream and niche. Occasionally surprising.
-- 50-69: Mostly mainstream but shows some independent discovery.
-- 30-49: Algorithm-driven consumption. Predictable references.
-- 0-29: Exclusively trending content. Zero original discovery.
+  const overallLevel = computeOverallLevel(dimensions);
 
-**Originality** (weight 20%): Creating the wave or riding it?
-- 90-100: Genuinely creates new ideas, formats, or perspectives. Unmistakable voice.
-- 70-89: Strong personal voice with occasional truly original takes.
-- 50-69: Has a voice but operates within established frameworks.
-- 30-49: Follows trends with personal flavor. Hard to distinguish from peers.
-- 0-29: Copy-paste culture. Could be anyone.
+  const patterns: string[] = [];
+  const contradictions: string[] = [];
+  const standoutMoments: string[] = [];
 
-**Consistency** (weight 15%): Does taste hold across platforms?
-- 90-100: Perfect cross-platform coherence. Same person everywhere.
-- 70-89: Mostly consistent with appropriate platform adaptation.
-- 50-69: Some inconsistencies but core identity is traceable.
-- 30-49: Noticeably different personas across platforms.
-- 0-29: Completely fragmented identity.
+  for (const [key, dim] of Object.entries(dimensions)) {
+    if (dim.score >= 85) {
+      standoutMoments.push(`Exceptional ${key}: ${dim.evidence[0]}`);
+    }
+    if (dim.score <= 30) {
+      patterns.push(
+        `Significant gap in ${key}: ${dim.reasoning.slice(0, 100)}`
+      );
+    }
+  }
 
-**Communication** (weight 20%): Economy of language, clarity, signal-to-noise
-- 90-100: Every post is tight. Memorable phrasing. Says what others can't articulate.
-- 70-89: Generally clear and well-written. Occasional filler.
-- 50-69: Competent but unremarkable.
-- 30-49: Verbose or unclear. Buzzwords. Corporate speak.
-- 0-29: Noise. Word salad. "Thrilled to announce" energy.
+  const levelValues = Object.entries(dimensions);
+  const highLevelDims = levelValues.filter(([, d]) => d.level === "L4");
+  const lowLevelDims = levelValues.filter(([, d]) => d.level === "L2");
+  if (highLevelDims.length > 0 && lowLevelDims.length > 0) {
+    contradictions.push(
+      `Operates at ${highLevelDims[0][1].level} on ${highLevelDims[0][0]} but ${lowLevelDims[0][1].level} on ${lowLevelDims[0][0]}`
+    );
+  }
 
-**Courage** (weight 15%): Actual opinions or safe takes?
-- 90-100: Genuinely controversial positions, well-defended. Intellectual courage.
-- 70-89: Takes real positions but picks battles wisely.
-- 50-69: Has opinions but stays within safe boundaries.
-- 30-49: Crowd-pleasing. Avoids anything that might get pushback.
-- 0-29: Zero edge. Pure consensus.
-
-**Self-Awareness** (weight 15%): Do they know what they are?
-- 90-100: Perfectly calibrated self-image.
-- 70-89: Generally self-aware with occasional blind spots.
-- 50-69: Some mismatch between self-image and reality.
-- 30-49: Significant delusion in one or more areas.
-- 0-29: Complete disconnect. Performance ≠ reality.
-
-For EACH dimension:
-- Provide a score (0-100)
-- Cite 2-4 specific evidence items (direct quotes, specific observations)
-- Write detailed reasoning explaining the score
-
-Then calculate compositeScore using the EXACT weighted formula:
-compositeScore = (References × 0.15) + (Originality × 0.20) + (Consistency × 0.15) + (Communication × 0.20) + (Courage × 0.15) + (Self-Awareness × 0.15)
-
-Also identify:
-- patterns: Cross-cutting themes across dimensions
-- contradictions: Places where the person's presence contradicts itself
-- standoutMoments: The most memorable/notable things you observed
-
-Output ONLY valid JSON matching this exact structure:
-{
-  "dimensions": {
-    "references": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" },
-    "originality": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" },
-    "consistency": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" },
-    "communication": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" },
-    "courage": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" },
-    "selfAwareness": { "score": <0-100>, "evidence": ["<specific quote or observation>", ...], "reasoning": "<detailed explanation>" }
-  },
-  "compositeScore": <weighted average>,
-  "patterns": ["<cross-cutting theme>", ...],
-  "contradictions": ["<contradiction>", ...],
-  "standoutMoments": ["<notable moment>", ...]
-}
-
-Do NOT write prose or editorial content — that's the Writer's job. Focus on structured scoring and evidence.
-
-Verified data for "${name}":
-
-${JSON.stringify(verifiedData, null, 2)}`,
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response from analyst agent");
-  return parseJsonResponse(content.text);
+  return {
+    dimensions,
+    compositeScore,
+    levelProfile,
+    overallLevel,
+    patterns,
+    contradictions,
+    standoutMoments,
+  };
 }
 
 // Agent 3: Editorial writing
@@ -234,7 +247,7 @@ TITLE GUIDELINES (max 6 words) — reference these tiers based on the composite 
 WRITING INSTRUCTIONS:
 1. **title**: A witty title (max 6 words) that captures "${name}"'s overall impression. Be creative — don't just copy the examples above.
 2. **verdict**: 3-4 lines, brutal but insightful. This is the hook.
-3. **Dimension notes**: For EACH of the 6 dimensions, write a FULL PARAGRAPH (3-5 sentences) that references specific evidence from the analysis. Use the evidence[] and reasoning provided by the analyst, but rewrite in your editorial voice. Make it vivid and specific.
+3. **Dimension notes**: For EACH of the 6 dimensions (curation, restraint, originality, conviction, identity, selfAwareness), write a FULL PARAGRAPH (3-5 sentences) that references specific evidence from the analysis. Use the evidence[] and reasoning provided by the analyst, but rewrite in your editorial voice. Make it vivid and specific.
 4. **tasteDNA**: 5-8 sentence analysis of their overall taste profile, influences, blind spots. This is the deep read.
 5. **crossPlatformConsistency**: A paragraph on how their identity holds (or doesn't) across platforms.
 6. **recommendations**: 3 specific, actionable things "${name}" can do to improve their taste score. Not generic advice — tailored to what you've seen.
@@ -251,13 +264,15 @@ Output ONLY valid JSON matching this exact structure:
   "score": ${analysis.compositeScore},
   "title": "<witty title, max 6 words>",
   "verdict": "<3-4 lines>",
+  "levelProfile": "${analysis.levelProfile}",
+  "overallLevel": "${analysis.overallLevel}",
   "dimensions": {
-    "references": { "score": ${analysis.dimensions.references.score}, "note": "<full paragraph>" },
-    "originality": { "score": ${analysis.dimensions.originality.score}, "note": "<full paragraph>" },
-    "consistency": { "score": ${analysis.dimensions.consistency.score}, "note": "<full paragraph>" },
-    "communication": { "score": ${analysis.dimensions.communication.score}, "note": "<full paragraph>" },
-    "courage": { "score": ${analysis.dimensions.courage.score}, "note": "<full paragraph>" },
-    "selfAwareness": { "score": ${analysis.dimensions.selfAwareness.score}, "note": "<full paragraph>" }
+    "curation": { "score": ${analysis.dimensions.curation.score}, "level": "${analysis.dimensions.curation.level}", "note": "<full paragraph>" },
+    "restraint": { "score": ${analysis.dimensions.restraint.score}, "level": "${analysis.dimensions.restraint.level}", "note": "<full paragraph>" },
+    "originality": { "score": ${analysis.dimensions.originality.score}, "level": "${analysis.dimensions.originality.level}", "note": "<full paragraph>" },
+    "conviction": { "score": ${analysis.dimensions.conviction.score}, "level": "${analysis.dimensions.conviction.level}", "note": "<full paragraph>" },
+    "identity": { "score": ${analysis.dimensions.identity.score}, "level": "${analysis.dimensions.identity.level}", "note": "<full paragraph>" },
+    "selfAwareness": { "score": ${analysis.dimensions.selfAwareness.score}, "level": "${analysis.dimensions.selfAwareness.level}", "note": "<full paragraph>" }
   },
   "tasteDNA": "<5-8 sentences>",
   "crossPlatformConsistency": "<paragraph>",

@@ -4,7 +4,7 @@ import { saveScore, updatePendingStatus, removePending } from "@/lib/leaderboard
 import { scrapeTwitter, scrapeLinkedIn, scrapeWebsite, deepResearch, getScreenshotUrl, getAvatarUrl } from "@/lib/scrape";
 import { ScoreResult } from "@/lib/types";
 import { judgeSchema } from "@/lib/validation";
-import { runResearcher, runAnalyst, runWriter } from "@/lib/agents";
+import { runResearcher, runDimensionAnalysts, runWriter } from "@/lib/agents";
 
 export const maxDuration = 120; // Allow up to 2 min
 
@@ -105,9 +105,9 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
     await updatePendingStatus(id, "verifying-data");
     const verifiedData = await runResearcher(name, context);
 
-    // Step 7: Agent pipeline - Analyst
+    // Step 7: Agent pipeline - 6 parallel dimension analysts
     await updatePendingStatus(id, "analyzing");
-    const analysis = await runAnalyst(name, verifiedData);
+    const analysis = await runDimensionAnalysts(name, verifiedData);
 
     // Step 8: Agent pipeline - Writer
     await updatePendingStatus(id, "writing-report");
@@ -119,11 +119,14 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
       score: Math.round(report.score),
       title: report.title,
       verdict: report.verdict,
+      levelProfile: report.levelProfile,
+      overallLevel: report.overallLevel,
       dimensions: report.dimensions,
       tasteDNA: report.tasteDNA,
       crossPlatformConsistency: report.crossPlatformConsistency,
       recommendations: report.recommendations,
       input: { twitter, linkedin, website, description },
+      dataSources: [twitter && "twitter", linkedin && "linkedin", website && "website"].filter(Boolean) as string[],
       avatarUrl,
       screenshots,
       scrapedData: {
