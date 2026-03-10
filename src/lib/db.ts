@@ -24,14 +24,17 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS evaluations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      score INTEGER NOT NULL,
+      score REAL NOT NULL,
       title TEXT NOT NULL,
       verdict TEXT NOT NULL,
+      level_profile TEXT,
+      overall_level TEXT,
       taste_dna TEXT,
       cross_platform_consistency TEXT,
       recommendations TEXT, -- JSON array
       dimensions TEXT NOT NULL, -- JSON object
       input TEXT, -- JSON object
+      data_sources TEXT,
       avatar_url TEXT,
       screenshots TEXT, -- JSON array
       scraped_data TEXT, -- JSON object
@@ -47,6 +50,17 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migrate existing tables to v2 schema
+  try {
+    _db.exec(`ALTER TABLE evaluations ADD COLUMN level_profile TEXT`);
+  } catch {} // Column already exists
+  try {
+    _db.exec(`ALTER TABLE evaluations ADD COLUMN overall_level TEXT`);
+  } catch {}
+  try {
+    _db.exec(`ALTER TABLE evaluations ADD COLUMN data_sources TEXT`);
+  } catch {}
 
   // Migrate existing JSON data on first run
   migrateFromJson(_db);
