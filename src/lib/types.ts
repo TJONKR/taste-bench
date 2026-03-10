@@ -1,16 +1,20 @@
+export type TasteLevel = "L2" | "L3" | "L4";
+
 export interface ScoreResult {
   id: string;
   name: string;
-  score: number;
+  score: number; // 0.00-100.00, two decimal places
   title: string;
   verdict: string;
+  levelProfile: string; // e.g., "L2-L3-L3-L2-L4-L3"
+  overallLevel: string; // e.g., "Level 3: Vision"
   dimensions: {
-    references: { score: number; note: string };
-    originality: { score: number; note: string };
-    consistency: { score: number; note: string };
-    communication: { score: number; note: string };
-    courage: { score: number; note: string };
-    selfAwareness: { score: number; note: string };
+    curation: { score: number; level: TasteLevel; note: string };
+    restraint: { score: number; level: TasteLevel; note: string };
+    originality: { score: number; level: TasteLevel; note: string };
+    conviction: { score: number; level: TasteLevel; note: string };
+    identity: { score: number; level: TasteLevel; note: string };
+    selfAwareness: { score: number; level: TasteLevel; note: string };
   };
   tasteDNA: string;
   crossPlatformConsistency: string;
@@ -21,13 +25,14 @@ export interface ScoreResult {
     website?: string;
     description?: string;
   };
+  dataSources: string[]; // e.g., ["twitter", "linkedin", "website"]
   avatarUrl: string;
   screenshots: { url: string; source: string }[];
   scrapedData: { twitter?: any; linkedin?: any; website?: string };
   createdAt: string;
 }
 
-// Agent 1 output: verified, cleaned data
+// Agent 1 output: verified, cleaned data (unchanged from v1)
 export interface VerifiedData {
   name: string;
   confidence: number; // 0-1, overall data confidence
@@ -65,34 +70,48 @@ export interface VerifiedData {
   researcherNotes: string;
 }
 
-// Agent 2 output: scores + evidence
+// Single dimension agent output
+export interface DimensionResult {
+  score: number; // 0.00-100.00
+  level: TasteLevel;
+  evidence: string[]; // 2-4 specific quotes or observations
+  reasoning: string;
+  tensionPositioning: string; // where they sit on the dimension's tension spectrums
+  philosopherHighlights: string; // most relevant philosopher check findings
+}
+
+// Assembled from 6 dimension agent outputs + computed fields
 export interface AnalysisResult {
   dimensions: {
-    references: { score: number; evidence: string[]; reasoning: string };
-    originality: { score: number; evidence: string[]; reasoning: string };
-    consistency: { score: number; evidence: string[]; reasoning: string };
-    communication: { score: number; evidence: string[]; reasoning: string };
-    courage: { score: number; evidence: string[]; reasoning: string };
-    selfAwareness: { score: number; evidence: string[]; reasoning: string };
+    curation: DimensionResult;
+    restraint: DimensionResult;
+    originality: DimensionResult;
+    conviction: DimensionResult;
+    identity: DimensionResult;
+    selfAwareness: DimensionResult;
   };
-  compositeScore: number;
-  patterns: string[];
+  compositeScore: number; // level-weighted: (Cur*0.125)+(Res*0.125)+(Ori*0.175)+(Con*0.175)+(Id*0.20)+(SA*0.20)
+  levelProfile: string; // e.g., "L2-L3-L3-L2-L4-L3"
+  overallLevel: string; // e.g., "Level 3: Vision"
+  patterns: string[]; // computed by comparing across dimension results
   contradictions: string[];
   standoutMoments: string[];
 }
 
 // Agent 3 output: the final editorial report
 export interface TasteReport {
-  score: number;
+  score: number; // pass-through from analyst compositeScore
   title: string;
   verdict: string;
+  levelProfile: string;
+  overallLevel: string;
   dimensions: {
-    references: { score: number; note: string };
-    originality: { score: number; note: string };
-    consistency: { score: number; note: string };
-    communication: { score: number; note: string };
-    courage: { score: number; note: string };
-    selfAwareness: { score: number; note: string };
+    curation: { score: number; level: TasteLevel; note: string };
+    restraint: { score: number; level: TasteLevel; note: string };
+    originality: { score: number; level: TasteLevel; note: string };
+    conviction: { score: number; level: TasteLevel; note: string };
+    identity: { score: number; level: TasteLevel; note: string };
+    selfAwareness: { score: number; level: TasteLevel; note: string };
   };
   tasteDNA: string;
   crossPlatformConsistency: string;
