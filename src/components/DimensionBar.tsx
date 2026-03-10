@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
 const labels: Record<string, string> = {
-  references: "References",
+  curation: "Curation",
+  restraint: "Restraint",
   originality: "Originality",
-  consistency: "Consistency",
-  communication: "Communication",
-  courage: "Courage",
+  conviction: "Conviction",
+  identity: "Identity",
   selfAwareness: "Self-awareness",
 };
 
@@ -23,7 +23,7 @@ function scoreTextClass(v: number): string {
   return "text-score-low";
 }
 
-export default function DimensionBar({ dimension, value, delay = 0 }: { dimension: string; value: number; delay?: number }) {
+export default function DimensionBar({ dimension, value, level, delay = 0 }: { dimension: string; value: number; level?: string; delay?: number }) {
   const [width, setWidth] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setWidth(value), delay);
@@ -38,8 +38,13 @@ export default function DimensionBar({ dimension, value, delay = 0 }: { dimensio
       className="space-y-2"
     >
       <div className="flex justify-between items-baseline">
-        <span className="font-serif text-sm font-semibold text-ink">{labels[dimension] || dimension}</span>
-        <span className={`font-serif text-xl font-bold ${scoreTextClass(value)}`}>{value}</span>
+        <span className="font-serif text-sm font-semibold text-ink">
+          {labels[dimension] || dimension}
+          {level && (
+            <span className="ml-2 text-[10px] font-mono font-normal text-ink/40 border border-ink/20 rounded px-1 py-0.5">{level}</span>
+          )}
+        </span>
+        <span className={`font-serif text-xl font-bold ${scoreTextClass(value)}`}>{value.toFixed(2)}</span>
       </div>
       <div className="h-1 bg-border rounded-full overflow-hidden">
         <div

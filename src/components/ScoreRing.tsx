@@ -9,6 +9,7 @@ function getScoreColor(v: number): string {
 
 export default function ScoreRing({ score, size = 180 }: { score: number; size?: number }) {
   const [displayed, setDisplayed] = useState(0);
+  const [done, setDone] = useState(false);
   const strokeWidth = 4;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -16,10 +17,11 @@ export default function ScoreRing({ score, size = 180 }: { score: number; size?:
   const color = getScoreColor(displayed);
 
   useEffect(() => {
+    setDone(false);
     let current = 0;
     const interval = setInterval(() => {
       current += 1;
-      if (current > score) { clearInterval(interval); return; }
+      if (current > score) { clearInterval(interval); setDone(true); return; }
       setDisplayed(current);
     }, 20);
     return () => clearInterval(interval);
@@ -41,7 +43,7 @@ export default function ScoreRing({ score, size = 180 }: { score: number; size?:
         />
       </svg>
       <div className="absolute flex flex-col items-center">
-        <span className="font-serif text-5xl font-bold" style={{ color }}>{displayed}</span>
+        <span className="font-serif text-5xl font-bold" style={{ color }}>{done ? score.toFixed(2) : displayed}</span>
         <span className="text-[10px] text-ink/25 uppercase tracking-widest">/ 100</span>
       </div>
     </div>

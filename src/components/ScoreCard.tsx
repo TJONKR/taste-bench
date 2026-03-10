@@ -45,6 +45,9 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
         <div className="mt-6">
           <ScoreRing score={data.score} size={140} />
         </div>
+        {(data as any).overallLevel && (
+          <p className="mt-4 text-sm font-medium text-accent">{(data as any).overallLevel}</p>
+        )}
       </motion.div>
 
       {/* Title & Verdict — Editorial pull quote */}
@@ -73,7 +76,7 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
         <div className="space-y-8">
           {dims.map(([key, dim], i) => (
             <div key={key}>
-              <DimensionBar dimension={key} value={dim.score} delay={200 + i * 100} />
+              <DimensionBar dimension={key} value={dim.score} level={(dim as any).level} delay={200 + i * 100} />
               {dim.note && (
                 <p className="mt-3 text-sm text-ink/40 leading-relaxed">{dim.note}</p>
               )}
@@ -124,6 +127,11 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
         >
           <p className="text-[11px] uppercase tracking-widest text-ink/25 mb-4">Cross-Platform Consistency</p>
           <p className="text-ink/60 leading-relaxed">{data.crossPlatformConsistency}</p>
+          {(data as any).dataSources && (data as any).dataSources.length > 0 && (
+            <p className="text-[10px] text-ink/20 mt-2">
+              Based on: {(data as any).dataSources.join(", ")}
+            </p>
+          )}
         </motion.section>
       )}
 
