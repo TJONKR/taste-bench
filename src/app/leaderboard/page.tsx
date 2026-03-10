@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ScoreResult } from "@/lib/types";
 
-type SortKey = "score" | "references" | "originality" | "consistency" | "communication" | "courage" | "selfAwareness";
+type SortKey = "score" | "curation" | "restraint" | "originality" | "conviction" | "identity" | "selfAwareness";
 const dimKey = (k: SortKey) => k as keyof ScoreResult["dimensions"];
 
 function scoreColor(v: number): string {
@@ -43,11 +43,11 @@ export default function LeaderboardPage() {
 
   const cols: { key: SortKey; label: string }[] = [
     { key: "score", label: "Score" },
-    { key: "references", label: "Ref" },
+    { key: "curation", label: "Cur" },
+    { key: "restraint", label: "Res" },
     { key: "originality", label: "Orig" },
-    { key: "consistency", label: "Cons" },
-    { key: "communication", label: "Comm" },
-    { key: "courage", label: "Cour" },
+    { key: "conviction", label: "Conv" },
+    { key: "identity", label: "Iden" },
     { key: "selfAwareness", label: "Self" },
   ];
 
@@ -104,7 +104,7 @@ export default function LeaderboardPage() {
                     const v = c.key === "score" ? s.score : (s.dimensions[dimKey(c.key)]?.score ?? 0);
                     return (
                       <td key={c.key} className={`py-4 px-3 text-right font-serif font-bold ${c.key === "score" ? "text-base" : "text-xs"} ${scoreColor(v)}`}>
-                        {v}
+                        {typeof v === "number" ? v.toFixed(2) : v}
                       </td>
                     );
                   })}

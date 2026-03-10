@@ -3,58 +3,64 @@ import { motion } from "framer-motion";
 
 const dimensions = [
   {
-    name: "References",
-    weight: "15%",
-    question: "Do you cite interesting sources or just trending ones?",
-    high: "Surfaces things others haven't seen. Cross-domain references. Primary sources.",
-    low: "Exclusively trending content. Zero original discovery.",
+    name: "Curation",
+    weight: "12.5%",
+    level: "Level 2: Selector",
+    question: "What does the quality of what you choose to surface reveal about your taste?",
+    high: "Curation itself is art. Cross-domain, surprising, purposeful. Clear through-line that feels authored.",
+    low: "Zero curation signal. Pure algorithm output. Indistinguishable from any other account in their niche.",
+  },
+  {
+    name: "Restraint",
+    weight: "12.5%",
+    level: "Level 2: Selector",
+    question: "Does this person know when to stop, when to stay quiet, when less is the answer?",
+    high: "Every word earns its place. You feel the editing hand. Silence is as loud as speech.",
+    low: "Pure noise. Word salad. 'Thrilled to announce' energy. No evidence of editing or restraint.",
   },
   {
     name: "Originality",
+    weight: "17.5%",
+    level: "Level 3: Creator",
+    question: "Do they add something to the world that wasn't there before?",
+    high: "Genuinely creates new ideas, formats, or perspectives that others adopt. Unmistakable voice. Builds real things.",
+    low: "Copy-paste culture. Could be anyone. Zero original creation. Pure redistribution.",
+  },
+  {
+    name: "Conviction",
+    weight: "17.5%",
+    level: "Level 3: Creator",
+    question: "Do they trust their own perception before consensus validates it?",
+    high: "Genuinely convicted. Champions things early, holds positions with grace. Their conviction has been tested.",
+    low: "Zero edge. Pure consensus. No detectable conviction on anything. Performative agreement with everything.",
+  },
+  {
+    name: "Identity",
     weight: "20%",
-    question: "Are you setting trends or following?",
-    high: "Genuinely creates new ideas, formats, or perspectives. Unmistakable voice.",
-    low: "Copy-paste culture. Could be anyone.",
-  },
-  {
-    name: "Consistency",
-    weight: "15%",
-    question: "Does your aesthetic hold across platforms?",
-    high: "Perfect cross-platform coherence. Same person everywhere.",
-    low: "Completely fragmented identity. Platform-dependent personality.",
-  },
-  {
-    name: "Communication",
-    weight: "20%",
-    question: "Economy of words, clarity vs noise?",
-    high: "Every post is tight. Memorable phrasing. Says what others can't articulate.",
-    low: "Noise. Word salad. 'Thrilled to announce' energy.",
-  },
-  {
-    name: "Courage",
-    weight: "15%",
-    question: "Do you have actual opinions or just safe takes?",
-    high: "Genuinely controversial positions, well-defended. Intellectual courage.",
-    low: "Zero edge. Pure consensus. 'I love this community' energy.",
+    level: "Level 4: Identity",
+    question: "Can you feel a specific, unmistakable person behind the work?",
+    high: "Unmistakable. You'd recognize their work without a name. Identity feels lived-in, not performed.",
+    low: "No identity signal. Could be a bot. Completely generic. No detectable person behind the output.",
   },
   {
     name: "Self-Awareness",
-    weight: "15%",
-    question: "Do you know what you are?",
-    high: "Perfectly calibrated self-image. Knows exactly what they are.",
-    low: "Complete disconnect. Performance ≠ reality.",
+    weight: "20%",
+    level: "Level 4: Identity",
+    question: "Do they understand their own taste — what it is, where it comes from, and what its blind spots are?",
+    high: "Perfectly calibrated. Self-image matches reality. Knows strengths, acknowledges weaknesses.",
+    low: "Complete disconnect. Performance bears no relationship to reality. No evidence of introspection.",
   },
 ];
 
 const tiers = [
-  { range: "90–100", name: "Legendary", desc: "Genuine tastemaker. Sets the standard." },
-  { range: "80–89", name: "Exceptional", desc: "Strong taste with few weaknesses." },
-  { range: "70–79", name: "Tasteful", desc: "Above average with room to sharpen." },
-  { range: "60–69", name: "Developing", desc: "Shows promise but inconsistent." },
-  { range: "50–59", name: "Mid", desc: "Neither impressive nor offensive." },
-  { range: "40–49", name: "Basic", desc: "Following trends, not setting them." },
-  { range: "30–39", name: "Struggling", desc: "Significant taste gaps across dimensions." },
-  { range: "0–29", name: "Tasteless", desc: "Algorithmically generated persona." },
+  { range: "90.00–100.00", name: "Legendary", desc: "Genuine tastemaker. Sets standards others follow. Taste as identity." },
+  { range: "80.00–89.99", name: "Exceptional", desc: "Strong taste with few weaknesses. Operates at Level 3-4 consistently." },
+  { range: "70.00–79.99", name: "Tasteful", desc: "Above average. Clear taste signals with room to deepen." },
+  { range: "60.00–69.99", name: "Developing", desc: "Shows promise. Operates mostly at Level 2 with flashes of Level 3." },
+  { range: "50.00–59.99", name: "Mid", desc: "Average. Neither impressive nor offensive. Functional discrimination." },
+  { range: "40.00–49.99", name: "Basic", desc: "Following trends, not setting them. Algorithm-shaped taste." },
+  { range: "30.00–39.99", name: "Struggling", desc: "Significant gaps across dimensions. More noise than signal." },
+  { range: "0.00–29.99", name: "Tasteless", desc: "No detectable taste signal. Algorithmically generated persona." },
 ];
 
 export default function MethodologyPage() {
@@ -68,7 +74,7 @@ export default function MethodologyPage() {
       <a href="/" className="text-ink/25 text-sm hover:text-ink/40 transition">← Back</a>
 
       <h1 className="font-serif text-4xl sm:text-5xl font-bold mt-8 mb-4">Methodology</h1>
-      <p className="text-ink/40 text-sm mb-16">How we measure taste. v0.1 — March 2026</p>
+      <p className="text-ink/40 text-sm mb-16">How we measure taste. v2.0 — March 2026</p>
 
       {/* What Is Taste */}
       <section className="mb-16">
@@ -80,6 +86,37 @@ export default function MethodologyPage() {
           <p>
             Taste has been the last unquantified human quality. We measure IQ, EQ, credit scores, follower counts, engagement rates — but nobody has tried to systematically evaluate the <em>quality</em> of someone&apos;s digital presence. Until now.
           </p>
+        </div>
+      </section>
+
+      {/* The 4 Levels of Taste */}
+      <section className="mb-16">
+        <h2 className="font-serif text-2xl font-semibold mb-4">The 4 Levels of Taste</h2>
+        <p className="text-ink/50 text-[15px] leading-relaxed mb-6">
+          Taste operates on a hierarchy. Each level builds on the one below it. Our 6 dimensions are organized by which level of taste they primarily measure.
+        </p>
+        <div className="space-y-4">
+          {[
+            { level: "Level 1: Preference", desc: "&ldquo;I like this.&rdquo; Raw personal response. Everyone has it. Not scored — it&apos;s the soil taste grows in." },
+            { level: "Level 2: Discrimination", desc: "&ldquo;This is good, that isn&apos;t.&rdquo; You can tell quality from garbage. You have an eye. Measured by Curation and Restraint." },
+            { level: "Level 3: Vision", desc: "&ldquo;This doesn&apos;t exist yet, but it should.&rdquo; Taste becomes generative, not just selective. Measured by Originality and Conviction." },
+            { level: "Level 4: Identity", desc: "&ldquo;I couldn&apos;t have made this any other way.&rdquo; Work and person are inseparable. Measured by Identity and Self-Awareness." },
+          ].map((l, i) => (
+            <motion.div
+              key={l.level}
+              initial={{ opacity: 0, x: -8 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              className="flex gap-4 items-start"
+            >
+              <span className="font-serif text-sm font-bold text-ink/30 whitespace-nowrap mt-0.5">{l.level.split(":")[0]}</span>
+              <div>
+                <span className="font-serif text-sm font-semibold">{l.level.split(": ")[1]}</span>
+                <p className="text-ink/45 text-sm mt-0.5" dangerouslySetInnerHTML={{ __html: l.desc }} />
+              </div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
@@ -99,6 +136,7 @@ export default function MethodologyPage() {
               <div className="flex items-baseline gap-3">
                 <h3 className="font-serif text-lg font-semibold">{d.name}</h3>
                 <span className="text-ink/20 text-xs font-mono">{d.weight}</span>
+                {(d as any).level && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{(d as any).level}</span>}
               </div>
               <p className="text-ink/50 text-sm italic mt-1">{d.question}</p>
               <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -120,7 +158,7 @@ export default function MethodologyPage() {
       <section className="mb-16">
         <h2 className="font-serif text-2xl font-semibold mb-4">Composite Score</h2>
         <p className="text-ink/50 text-[15px] leading-relaxed mb-6">
-          The composite Taste Score is a weighted average. Originality and Communication weigh heaviest (20% each) because they represent the core of taste — what you create and how you express it.
+          The composite Taste Score is a level-weighted average. Identity and Self-Awareness weigh heaviest (20% each) because they represent the deepest expression of taste — taste as self. Level 3 dimensions (Originality, Conviction) carry 17.5% each, while Level 2 dimensions (Curation, Restraint) carry 12.5% each.
         </p>
         <div className="border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
@@ -181,7 +219,7 @@ export default function MethodologyPage() {
           <p>We&apos;re honest about what this is and isn&apos;t:</p>
           <ul className="space-y-1.5 pl-4 text-sm">
             <li>• Single-point-in-time evaluation — taste evolves</li>
-            <li>• English-language bias in communication scoring</li>
+            <li>• English-language bias in text-based scoring</li>
             <li>• Western-centric aesthetic norms in some dimensions</li>
             <li>• AI judge is consistent but not objective</li>
             <li>• Text-heavy analysis — limited visual scoring currently</li>
@@ -197,7 +235,7 @@ export default function MethodologyPage() {
         <p className="text-ink/20 text-xs">
           <a href="/" className="hover:text-ink/40 transition">← Back to leaderboard</a>
           {" · "}
-          The Taste Bench v0.1
+          The Taste Bench v2.0
         </p>
       </footer>
     </motion.main>

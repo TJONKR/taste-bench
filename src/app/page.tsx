@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScoreResult } from "@/lib/types";
 
-type SortKey = "score" | "references" | "originality" | "consistency" | "communication" | "courage" | "selfAwareness";
+type SortKey = "score" | "curation" | "restraint" | "originality" | "conviction" | "identity" | "selfAwareness";
 const dimKey = (k: SortKey) => k as keyof ScoreResult["dimensions"];
 
 function scoreColor(v: number): string {
@@ -48,7 +48,9 @@ export default function Home() {
     setForm(f => ({ ...f, [key]: e.target.value }));
 
   const totalJudged = leaderboard.length;
-  const avgScore = totalJudged > 0 ? Math.round(leaderboard.reduce((s, r) => s + r.score, 0) / totalJudged) : 0;
+  const avgScore = totalJudged > 0
+    ? (leaderboard.reduce((s, r) => s + r.score, 0) / totalJudged).toFixed(2)
+    : "0.00";
 
   const sorted = [...leaderboard].sort((a, b) => {
     const av = sortBy === "score" ? a.score : (a.dimensions[dimKey(sortBy)]?.score ?? 0);
@@ -70,11 +72,11 @@ export default function Home() {
 
   const cols: { key: SortKey; label: string }[] = [
     { key: "score", label: "Score" },
-    { key: "references", label: "Ref" },
+    { key: "curation", label: "Cur" },
+    { key: "restraint", label: "Res" },
     { key: "originality", label: "Orig" },
-    { key: "consistency", label: "Cons" },
-    { key: "communication", label: "Comm" },
-    { key: "courage", label: "Cour" },
+    { key: "conviction", label: "Conv" },
+    { key: "identity", label: "Iden" },
     { key: "selfAwareness", label: "Self" },
   ];
 
@@ -214,7 +216,7 @@ export default function Home() {
                       const v = c.key === "score" ? s.score : (s.dimensions[dimKey(c.key)]?.score ?? 0);
                       return (
                         <td key={c.key} className={`py-4 px-3 text-right font-serif font-bold ${c.key === "score" ? "text-base" : "text-xs"} ${scoreColor(v)}`}>
-                          {v}
+                          {typeof v === "number" ? v.toFixed(2) : v}
                         </td>
                       );
                     })}
@@ -247,7 +249,7 @@ export default function Home() {
               Everyone has taste. Most people&apos;s is unconscious. The Taste Bench makes it visible.
             </p>
             <p className="text-ink/30 text-sm pt-2">
-              We evaluate across six dimensions: References, Originality, Consistency, Communication, Courage, and Self-Awareness.
+              We evaluate across six dimensions: Curation, Restraint, Originality, Conviction, Identity, and Self-Awareness.
               {" "}
               <a href="/methodology" className="text-accent hover:text-accent-hover transition underline underline-offset-2">Read our full methodology →</a>
             </p>
@@ -307,7 +309,7 @@ export default function Home() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-4">
                     <h3 className="font-serif text-xl font-semibold">{featured.name}</h3>
-                    <span className="font-serif text-2xl font-bold text-score-high">{featured.score}</span>
+                    <span className="font-serif text-2xl font-bold text-score-high">{featured.score.toFixed(2)}</span>
                   </div>
                   <p className="font-serif text-sm italic text-ink/40 mt-1">&ldquo;{featured.title}&rdquo;</p>
                   <p className="text-sm text-ink/50 mt-3 leading-relaxed line-clamp-3">{featured.verdict}</p>

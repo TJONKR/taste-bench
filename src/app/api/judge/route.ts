@@ -116,7 +116,7 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
     const scoreResult: ScoreResult = {
       id,
       name,
-      score: Math.round(report.score),
+      score: report.score, // decimal, no rounding — v2 uses 0.00-100.00
       title: report.title,
       verdict: report.verdict,
       levelProfile: report.levelProfile,
