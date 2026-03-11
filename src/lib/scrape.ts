@@ -5,6 +5,7 @@ export interface TwitterData {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   followers?: number;
   following?: number;
   tweets: string[];
@@ -88,6 +89,7 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
       result.bio = first.author.description;
       result.avatarUrl = (first.author.profilePicture || first.author.profileImageUrl || "")
         .replace("_normal", "_400x400");
+      result.bannerUrl = first.author.profileBannerUrl || undefined;
       result.followers = first.author.followers;
       result.following = first.author.following;
     } else if (first?.user) {
@@ -95,6 +97,7 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
       result.bio = first.user.description;
       result.avatarUrl = (first.user.profile_image_url_https || first.user.profilePicture || "")
         .replace("_normal", "_400x400");
+      result.bannerUrl = first.user.profile_banner_url || undefined;
       result.followers = first.user.followers_count;
       result.following = first.user.friends_count;
     }
@@ -131,6 +134,7 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
       result.displayName = result.displayName || u.name;
       result.bio = result.bio || u.description;
       result.avatarUrl = result.avatarUrl || u.profile_image_url_https?.replace("_normal", "_400x400");
+      result.bannerUrl = result.bannerUrl || u.profile_banner_url || undefined;
       result.followers = result.followers || u.followers_count;
       result.following = result.following || u.friends_count;
     }
@@ -281,6 +285,28 @@ export async function deepResearch(name: string, twitter?: string, website?: str
 
 export function getScreenshotUrl(url: string): string {
   return `https://image.thum.io/get/width/1280/${url}`;
+}
+
+export async function fetchScreenshotAsBase64(url: string): Promise<{ base64: string; mediaType: string } | null> {
+  try {
+    const screenshotUrl = getScreenshotUrl(url);
+    console.log(`Fetching screenshot for ${url}...`);
+    const res = await fetch(screenshotUrl, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      console.error(`Screenshot fetch failed for ${url}: ${res.status}`);
+      return null;
+    }
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    const mediaType = (res.headers.get("content-type") || "image/png").split(";")[0];
+    console.log(`Screenshot captured for ${url} (${Math.round(buffer.byteLength / 1024)}KB)`);
+    return { base64, mediaType };
+  } catch (e: any) {
+    console.error(`Screenshot fetch error for ${url}:`, e.message);
+    return null;
+  }
 }
 
 export function getAvatarUrl(name: string, twitterAvatarUrl?: string, twitterHandle?: string): string {

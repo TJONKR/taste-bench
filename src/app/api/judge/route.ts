@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { saveScore, updatePendingStatus, removePending } from "@/lib/leaderboard";
-import { scrapeTwitter, scrapeLinkedIn, scrapeWebsite, deepResearch, getScreenshotUrl, getAvatarUrl } from "@/lib/scrape";
-import { ScoreResult } from "@/lib/types";
+import { scrapeTwitter, scrapeLinkedIn, scrapeWebsite, deepResearch, getScreenshotUrl, getAvatarUrl, fetchScreenshotAsBase64 } from "@/lib/scrape";
+import { ScoreResult, ScreenshotImage } from "@/lib/types";
 import { judgeSchema } from "@/lib/validation";
 import { runResearcher, runDimensionAnalysts, runWriter } from "@/lib/agents";
 
-export const maxDuration = 120; // Allow up to 2 min
+export const maxDuration = 240; // Allow up to 4 min (3-pass self-consistency + vision)
 
 export async function POST(req: Request) {
   let id = "";
@@ -50,16 +50,71 @@ export async function POST(req: Request) {
     const researchResults = await deepResearch(name, twitter, website);
     await delay(2000);
 
-    // Step 5: Screenshots
+    // Step 5: Screenshots (URLs for display + base64 for vision analysis)
     await updatePendingStatus(id, "capturing-screenshots");
-    await delay(2000);
     const screenshots: { url: string; source: string }[] = [];
+    const screenshotUrls: { url: string; source: string }[] = [];
     if (twitter) {
       const clean = twitter.replace("@", "").replace(/https?:\/\/(twitter|x)\.com\//i, "").replace(/\/.*/, "");
-      screenshots.push({ url: getScreenshotUrl(`https://x.com/${clean}`), source: "Twitter/X" });
+      const twitterUrl = `https://x.com/${clean}`;
+      screenshots.push({ url: getScreenshotUrl(twitterUrl), source: "Twitter/X" });
+      screenshotUrls.push({ url: twitterUrl, source: "Twitter/X" });
     }
-    if (linkedin) screenshots.push({ url: getScreenshotUrl(linkedin), source: "LinkedIn" });
-    if (website) screenshots.push({ url: getScreenshotUrl(website), source: "Website" });
+    if (linkedin) {
+      screenshots.push({ url: getScreenshotUrl(linkedin), source: "LinkedIn" });
+      screenshotUrls.push({ url: linkedin, source: "LinkedIn" });
+    }
+    if (website) {
+      screenshots.push({ url: getScreenshotUrl(website), source: "Website" });
+      screenshotUrls.push({ url: website, source: "Website" });
+    }
+
+    // Fetch images for Claude Vision analysis:
+    // - Website: screenshot via thum.io (public page)
+    // - Twitter: banner + profile pic from CDN (public URLs, no auth needed)
+    // - LinkedIn: no visual (auth-walled, no public image URLs)
+    const screenshotImages: ScreenshotImage[] = [];
+
+    // Website screenshot
+    if (website) {
+      console.log("Fetching website screenshot for vision...");
+      const wsResult = await fetchScreenshotAsBase64(website);
+      if (wsResult) {
+        screenshotImages.push({ source: "Website", base64: wsResult.base64, mediaType: wsResult.mediaType });
+      }
+    }
+
+    // Twitter profile images (banner + avatar) — direct CDN fetches, no auth
+    if (twitterData?.bannerUrl) {
+      try {
+        console.log("Fetching Twitter banner image for vision...");
+        const bannerRes = await fetch(`${twitterData.bannerUrl}/1500x500`, { signal: AbortSignal.timeout(10000) });
+        if (bannerRes.ok) {
+          const buf = await bannerRes.arrayBuffer();
+          const mediaType = (bannerRes.headers.get("content-type") || "image/png").split(";")[0];
+          screenshotImages.push({ source: "Twitter Banner", base64: Buffer.from(buf).toString("base64"), mediaType });
+          console.log(`Twitter banner captured (${Math.round(buf.byteLength / 1024)}KB)`);
+        }
+      } catch (e: any) {
+        console.error("Twitter banner fetch failed:", e.message);
+      }
+    }
+    if (twitterData?.avatarUrl) {
+      try {
+        console.log("Fetching Twitter profile pic for vision...");
+        const avatarRes = await fetch(twitterData.avatarUrl, { signal: AbortSignal.timeout(10000) });
+        if (avatarRes.ok) {
+          const buf = await avatarRes.arrayBuffer();
+          const mediaType = (avatarRes.headers.get("content-type") || "image/jpeg").split(";")[0];
+          screenshotImages.push({ source: "Twitter Profile Pic", base64: Buffer.from(buf).toString("base64"), mediaType });
+          console.log(`Twitter profile pic captured (${Math.round(buf.byteLength / 1024)}KB)`);
+        }
+      } catch (e: any) {
+        console.error("Twitter avatar fetch failed:", e.message);
+      }
+    }
+
+    console.log(`Vision: ${screenshotImages.length} images captured for analysis`);
 
     const avatarUrl = getAvatarUrl(name, twitterData?.avatarUrl, twitter);
 
@@ -105,9 +160,9 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
     await updatePendingStatus(id, "verifying-data");
     const verifiedData = await runResearcher(name, context);
 
-    // Step 7: Agent pipeline - 6 parallel dimension analysts
+    // Step 7: Agent pipeline - 6 parallel dimension analysts (3-pass self-consistency + vision)
     await updatePendingStatus(id, "analyzing");
-    const analysis = await runDimensionAnalysts(name, verifiedData);
+    const analysis = await runDimensionAnalysts(name, verifiedData, screenshotImages);
 
     // Step 8: Agent pipeline - Writer
     await updatePendingStatus(id, "writing-report");

@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { VerifiedData, AnalysisResult, TasteReport } from "./types";
+import { VerifiedData, AnalysisResult, TasteReport, DimensionResult, TasteLevel, ScreenshotImage } from "./types";
 import {
   analyzeCuration,
   analyzeRestraint,
@@ -103,7 +103,7 @@ ${rawContext}`,
   return parseJsonResponse(content.text);
 }
 
-// Agent 2: 6 parallel dimension analysts assembled into AnalysisResult
+// Agent 2: 6 parallel dimension analysts with 3-pass self-consistency
 const WEIGHTS = {
   curation: 0.125,
   restraint: 0.125,
@@ -112,6 +112,63 @@ const WEIGHTS = {
   identity: 0.20,
   selfAwareness: 0.20,
 };
+
+const CONSISTENCY_PASSES = 3;
+
+type DimensionFn = (
+  name: string,
+  data: VerifiedData,
+  screenshots?: ScreenshotImage[]
+) => Promise<DimensionResult>;
+
+async function runWithConsistency(
+  fn: DimensionFn,
+  name: string,
+  data: VerifiedData,
+  screenshots?: ScreenshotImage[]
+): Promise<DimensionResult> {
+  const results = await Promise.all(
+    Array.from({ length: CONSISTENCY_PASSES }, () => fn(name, data, screenshots))
+  );
+
+  // Sort by score, take median (middle result)
+  const sorted = [...results].sort((a, b) => a.score - b.score);
+  const median = sorted[Math.floor(CONSISTENCY_PASSES / 2)];
+
+  // Majority vote on level
+  const levelCounts: Record<string, number> = {};
+  results.forEach((r) => {
+    levelCounts[r.level] = (levelCounts[r.level] || 0) + 1;
+  });
+  const majorityLevel = Object.entries(levelCounts).sort(
+    (a, b) => b[1] - a[1]
+  )[0][0] as TasteLevel;
+
+  // Merge evidence from all passes (deduplicated, max 5)
+  const allEvidence = results.flatMap((r) => r.evidence);
+  const seen = new Set<string>();
+  const uniqueEvidence = allEvidence.filter((e) => {
+    if (seen.has(e)) return false;
+    seen.add(e);
+    return true;
+  }).slice(0, 5);
+
+  // Log variance for monitoring
+  const scores = results.map((r) => r.score);
+  const variance = Math.max(...scores) - Math.min(...scores);
+  console.log(
+    `Self-consistency: scores=[${scores.map((s) => s.toFixed(1)).join(", ")}] variance=${variance.toFixed(1)} median=${median.score.toFixed(2)} level=${majorityLevel}`
+  );
+
+  return {
+    score: median.score,
+    level: majorityLevel,
+    evidence: uniqueEvidence,
+    reasoning: median.reasoning,
+    tensionPositioning: median.tensionPositioning,
+    philosopherHighlights: median.philosopherHighlights,
+  };
+}
 
 function computeOverallLevel(
   dimensions: AnalysisResult["dimensions"]
@@ -133,8 +190,12 @@ function computeOverallLevel(
 
 export async function runDimensionAnalysts(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  screenshots?: ScreenshotImage[]
 ): Promise<AnalysisResult> {
+  console.log(`Running ${CONSISTENCY_PASSES}-pass self-consistency analysis (${CONSISTENCY_PASSES * 6} total agent calls)...`);
+
+  // All 18 calls run in parallel (3 passes × 6 dimensions)
   const [
     curation,
     restraint,
@@ -143,12 +204,12 @@ export async function runDimensionAnalysts(
     identity,
     selfAwareness,
   ] = await Promise.all([
-    analyzeCuration(name, verifiedData),
-    analyzeRestraint(name, verifiedData),
-    analyzeOriginality(name, verifiedData),
-    analyzeConviction(name, verifiedData),
-    analyzeIdentity(name, verifiedData),
-    analyzeSelfAwareness(name, verifiedData),
+    runWithConsistency(analyzeCuration, name, verifiedData, screenshots),
+    runWithConsistency(analyzeRestraint, name, verifiedData),
+    runWithConsistency(analyzeOriginality, name, verifiedData),
+    runWithConsistency(analyzeConviction, name, verifiedData),
+    runWithConsistency(analyzeIdentity, name, verifiedData, screenshots),
+    runWithConsistency(analyzeSelfAwareness, name, verifiedData),
   ]);
 
   const dimensions = {

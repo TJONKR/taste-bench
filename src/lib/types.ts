@@ -1,5 +1,11 @@
 export type TasteLevel = "L2" | "L3" | "L4";
 
+export interface ScreenshotImage {
+  source: string; // "Twitter/X", "LinkedIn", "Website"
+  base64: string;
+  mediaType: string; // "image/png", "image/jpeg"
+}
+
 export interface ScoreResult {
   id: string;
   name: string;

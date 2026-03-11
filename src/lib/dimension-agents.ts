@@ -1,7 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { VerifiedData, DimensionResult } from "./types";
+import { VerifiedData, DimensionResult, ScreenshotImage } from "./types";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function buildContentWithScreenshots(
+  text: string,
+  screenshots?: ScreenshotImage[]
+): Anthropic.Messages.ContentBlockParam[] {
+  if (!screenshots || screenshots.length === 0) {
+    return [{ type: "text", text }];
+  }
+  const blocks: Anthropic.Messages.ContentBlockParam[] = [];
+  for (const s of screenshots) {
+    blocks.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: s.mediaType as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
+        data: s.base64,
+      },
+    });
+    blocks.push({ type: "text", text: `[Screenshot: ${s.source}]` });
+  }
+  blocks.push({ type: "text", text });
+  return blocks;
+}
 
 function parseJsonResponse(text: string): any {
   let jsonText = text.trim();
@@ -15,15 +38,22 @@ function parseJsonResponse(text: string): any {
 
 export async function analyzeCuration(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  screenshots?: ScreenshotImage[]
 ): Promise<DimensionResult> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are the CURATION specialist for The Taste Bench — the internet's taste evaluation platform.
+  const visualBlock = screenshots && screenshots.length > 0
+    ? `
+
+VISUAL ANALYSIS (screenshots provided — USE THEM):
+Examine the attached screenshots carefully. What do their visual choices reveal about curation taste?
+- Profile imagery and header choices — intentional or default?
+- Website design: typography, color palette, layout — do these choices show a curated eye?
+- Visual consistency of quality across platforms
+- Does the visual presentation match the quality of their written content?
+- What do they choose to show visually? This IS curation.`
+    : "";
+
+  const prompt = `You are the CURATION specialist for The Taste Bench — the internet's taste evaluation platform.
 
 You evaluate ONLY the Curation dimension for "${name}". Be rigorous and honest. Do NOT inflate scores.
 
@@ -58,6 +88,7 @@ OBSERVABLE EVIDENCE:
 - Breadth of references across domains
 - Ratio of algorithmic content vs independent discovery
 - The through-line connecting varied interests
+${visualBlock}
 
 SCORING ANCHORS:
 - 90-100: Curation itself is art. Cross-domain, surprising, purposeful. You discover things through them you'd never find alone. Clear through-line that feels authored.
@@ -84,7 +115,15 @@ Output ONLY valid JSON:
 }
 
 Verified data for "${name}":
-${JSON.stringify(verifiedData, null, 2)}`,
+${JSON.stringify(verifiedData, null, 2)}`;
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: buildContentWithScreenshots(prompt, screenshots),
       },
     ],
   });
@@ -97,7 +136,8 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
 export async function analyzeRestraint(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  _screenshots?: ScreenshotImage[] // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<DimensionResult> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -180,7 +220,8 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
 export async function analyzeOriginality(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  _screenshots?: ScreenshotImage[] // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<DimensionResult> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -263,7 +304,8 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
 export async function analyzeConviction(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  _screenshots?: ScreenshotImage[] // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<DimensionResult> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
@@ -346,15 +388,23 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
 export async function analyzeIdentity(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  screenshots?: ScreenshotImage[]
 ): Promise<DimensionResult> {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are the IDENTITY specialist for The Taste Bench — the internet's taste evaluation platform.
+  const visualBlock = screenshots && screenshots.length > 0
+    ? `
+
+VISUAL ANALYSIS (screenshots provided — USE THEM):
+Examine the attached screenshots carefully. This is critical for Identity:
+- Does the same visual identity show up across platforms? Cross-platform visual coherence is a STRONG identity signal.
+- Profile imagery choices — intentional, distinctive, or default?
+- Website design aesthetic — does it feel like the same person who writes the content?
+- Typography, color choices, layout — are these choices or defaults?
+- Visual fingerprint — would you recognize this person's pages without names attached?
+- Does the visual world they've built match the verbal world?`
+    : "";
+
+  const prompt = `You are the IDENTITY specialist for The Taste Bench — the internet's taste evaluation platform.
 
 You evaluate ONLY the Identity dimension for "${name}". Be rigorous and honest. Do NOT inflate scores.
 
@@ -397,6 +447,7 @@ OBSERVABLE EVIDENCE:
 - The "byline test" — would you recognize their work unsigned?
 - Repeated references, themes, or aesthetics over time
 - Whether their identity feels performed or lived-in
+${visualBlock}
 
 SCORING ANCHORS:
 - 90-100: Unmistakable. You'd recognize their work without a name. Cross-platform coherent. Identity feels lived-in, not performed. Clear core that has evolved over time. A specific person, not a brand.
@@ -422,7 +473,15 @@ Output ONLY valid JSON:
 }
 
 Verified data for "${name}":
-${JSON.stringify(verifiedData, null, 2)}`,
+${JSON.stringify(verifiedData, null, 2)}`;
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: buildContentWithScreenshots(prompt, screenshots),
       },
     ],
   });
@@ -435,7 +494,8 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
 export async function analyzeSelfAwareness(
   name: string,
-  verifiedData: VerifiedData
+  verifiedData: VerifiedData,
+  _screenshots?: ScreenshotImage[] // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<DimensionResult> {
   const message = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
