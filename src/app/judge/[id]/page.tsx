@@ -73,7 +73,7 @@ export default function JudgePage() {
 
     const timeout = setTimeout(() => {
       if (!redirected) { redirected = true; router.push(`/score/${id}`); }
-    }, 180000);
+    }, 300000); // 5 min timeout (3-pass self-consistency + vision takes longer)
 
     return () => { clearInterval(pollRef.current); clearTimeout(timeout); };
   }, [id, router]);
@@ -87,7 +87,7 @@ export default function JudgePage() {
       <div className="max-w-md w-full px-6 text-center space-y-12">
         <div>
           <h1 className="font-serif text-2xl font-semibold text-ink mb-2">Deep Analysis in Progress</h1>
-          <p className="text-ink/30 text-sm">This takes 30–90 seconds.</p>
+          <p className="text-ink/30 text-sm">This takes 1–3 minutes. Each dimension is scored 3 times for consistency.</p>
         </div>
 
         {error ? (

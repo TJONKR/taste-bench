@@ -11,10 +11,28 @@ export default function ScorePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`/api/score/${id}`)
-      .then(r => { if (!r.ok) throw new Error("Not found"); return r.json(); })
-      .then(setData)
-      .catch(e => setError(e.message));
+    let attempts = 0;
+    const maxAttempts = 15; // retry for up to 30s
+
+    const fetchScore = () => {
+      fetch(`/api/score/${id}`)
+        .then(r => {
+          if (!r.ok) {
+            // Retry if score isn't ready yet (redirected before pipeline finished)
+            if (attempts < maxAttempts) {
+              attempts++;
+              setTimeout(fetchScore, 2000);
+              return;
+            }
+            throw new Error("Not found");
+          }
+          return r.json();
+        })
+        .then(d => { if (d) setData(d); })
+        .catch(e => setError(e.message));
+    };
+
+    fetchScore();
   }, [id]);
 
   if (error) return (
