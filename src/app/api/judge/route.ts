@@ -8,7 +8,7 @@ import { runResearchAgent } from "@/lib/research-agent";
 import { decrypt } from "@/lib/crypto";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
-export const maxDuration = 600; // 10 min
+export const maxDuration = 300; // 5 min (Vercel hobby plan limit)
 
 export async function POST(req: Request) {
   let id = "";
