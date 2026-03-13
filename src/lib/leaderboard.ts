@@ -1,6 +1,20 @@
-import { ScoreResult } from "./types";
+import { ScoreResult, StatusData, StatusResponse } from "./types";
 import { supabase, isSupabaseConfigured } from "./supabase";
 import { getDb } from "./db";
+import { isUUID } from "./slug";
+
+// ============================================================
+// Lookup helper — slug vs UUID disambiguation
+// ============================================================
+
+interface Lookup {
+  id?: string;
+  slug?: string;
+}
+
+function toLookup(idOrSlug: string): Lookup {
+  return isUUID(idOrSlug) ? { id: idOrSlug } : { slug: idOrSlug };
+}
 
 // ============================================================
 // SQLite helpers
@@ -9,8 +23,12 @@ import { getDb } from "./db";
 interface PendingJob {
   id: string;
   input: any;
+  slug?: string;
   status: "scraping-twitter" | "scraping-linkedin" | "scraping-website" | "deep-research" | "capturing-screenshots" | "verifying-data" | "analyzing" | "writing-report" | "generating-report" | "complete" | "error";
+  statusData?: StatusData;
   error?: string;
+  name?: string;
+  userId?: string;
   createdAt: string;
 }
 
@@ -18,6 +36,7 @@ function toScoreResult(row: any): ScoreResult {
   return {
     id: row.id,
     name: row.name,
+    slug: row.slug || "",
     score: row.score,
     title: row.title,
     verdict: row.verdict,
@@ -32,6 +51,7 @@ function toScoreResult(row: any): ScoreResult {
     avatarUrl: row.avatar_url || "",
     screenshots: JSON.parse(row.screenshots || "[]"),
     scrapedData: JSON.parse(row.scraped_data || "{}"),
+    userId: row.user_id || undefined,
     createdAt: row.created_at,
   };
 }
@@ -45,11 +65,12 @@ function sqliteGetLeaderboard(): ScoreResult[] {
 function sqliteSaveScore(score: ScoreResult) {
   const db = getDb();
   db.prepare(`
-    INSERT OR REPLACE INTO evaluations (id, name, score, title, verdict, level_profile, overall_level, taste_dna, cross_platform_consistency, recommendations, dimensions, input, data_sources, avatar_url, screenshots, scraped_data, created_at)
-    VALUES (@id, @name, @score, @title, @verdict, @level_profile, @overall_level, @taste_dna, @cross_platform_consistency, @recommendations, @dimensions, @input, @data_sources, @avatar_url, @screenshots, @scraped_data, @created_at)
+    INSERT OR REPLACE INTO evaluations (id, name, slug, score, title, verdict, level_profile, overall_level, taste_dna, cross_platform_consistency, recommendations, dimensions, input, data_sources, avatar_url, screenshots, scraped_data, user_id, created_at)
+    VALUES (@id, @name, @slug, @score, @title, @verdict, @level_profile, @overall_level, @taste_dna, @cross_platform_consistency, @recommendations, @dimensions, @input, @data_sources, @avatar_url, @screenshots, @scraped_data, @user_id, @created_at)
   `).run({
     id: score.id,
     name: score.name,
+    slug: score.slug || null,
     score: score.score,
     title: score.title,
     verdict: score.verdict,
@@ -64,35 +85,50 @@ function sqliteSaveScore(score: ScoreResult) {
     avatar_url: score.avatarUrl,
     screenshots: JSON.stringify(score.screenshots),
     scraped_data: JSON.stringify(score.scrapedData),
+    user_id: score.userId || null,
     created_at: score.createdAt,
   });
 }
 
-function sqliteGetScore(id: string): ScoreResult | undefined {
+function sqliteGetScore(lookup: Lookup): ScoreResult | undefined {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM evaluations WHERE id = ?").get(id);
+  const row = lookup.id
+    ? db.prepare("SELECT * FROM evaluations WHERE id = ?").get(lookup.id)
+    : db.prepare("SELECT * FROM evaluations WHERE slug = ?").get(lookup.slug);
   return row ? toScoreResult(row) : undefined;
 }
 
-function sqliteSavePending(id: string, input: any) {
+function sqliteSavePending(id: string, input: any, slug?: string, userId?: string) {
   const db = getDb();
-  db.prepare("INSERT OR REPLACE INTO pending_jobs (id, input, status, created_at) VALUES (?, ?, 'scraping-twitter', datetime('now'))").run(id, JSON.stringify(input));
+  db.prepare(
+    "INSERT OR REPLACE INTO pending_jobs (id, input, slug, status, user_id, created_at) VALUES (?, ?, ?, 'scraping-twitter', ?, datetime('now'))"
+  ).run(id, JSON.stringify(input), slug || null, userId || null);
 }
 
-function sqliteUpdatePendingStatus(id: string, status: PendingJob["status"], error?: string) {
+function sqliteUpdatePendingStatus(id: string, status: PendingJob["status"], error?: string, statusData?: StatusData) {
   const db = getDb();
+  const statusDataJson = statusData ? JSON.stringify(statusData) : null;
   if (error) {
-    db.prepare("UPDATE pending_jobs SET status = ?, error = ? WHERE id = ?").run(status, error, id);
+    db.prepare("UPDATE pending_jobs SET status = ?, error = ?, status_data = ? WHERE id = ?").run(status, error, statusDataJson, id);
   } else {
-    db.prepare("UPDATE pending_jobs SET status = ? WHERE id = ?").run(status, id);
+    db.prepare("UPDATE pending_jobs SET status = ?, status_data = ? WHERE id = ?").run(status, statusDataJson, id);
   }
 }
 
-function sqliteGetPendingStatus(id: string): { status: string; error?: string } | null {
+function sqliteGetPendingStatus(lookup: Lookup): StatusResponse | null {
   const db = getDb();
-  const row = db.prepare("SELECT status, error FROM pending_jobs WHERE id = ?").get(id) as any;
+  const row = (lookup.id
+    ? db.prepare("SELECT status, error, status_data, slug, input FROM pending_jobs WHERE id = ?").get(lookup.id)
+    : db.prepare("SELECT status, error, status_data, slug, input FROM pending_jobs WHERE slug = ?").get(lookup.slug)) as any;
   if (!row) return null;
-  return { status: row.status, error: row.error ?? undefined };
+  const input = row.input ? JSON.parse(row.input) : {};
+  return {
+    status: row.status,
+    error: row.error ?? undefined,
+    stats: row.status_data ? JSON.parse(row.status_data) : undefined,
+    name: input.name,
+    slug: row.slug ?? undefined,
+  };
 }
 
 function sqliteRemovePending(id: string) {
@@ -108,6 +144,7 @@ function toDbRow(score: ScoreResult) {
   return {
     id: score.id,
     name: score.name,
+    slug: score.slug || null,
     score: score.score,
     title: score.title,
     verdict: score.verdict,
@@ -122,6 +159,7 @@ function toDbRow(score: ScoreResult) {
     avatar_url: score.avatarUrl,
     screenshots: score.screenshots,
     scraped_data: score.scrapedData,
+    user_id: score.userId || null,
     created_at: score.createdAt,
   };
 }
@@ -130,6 +168,7 @@ function fromDbRow(row: any): ScoreResult {
   return {
     id: row.id,
     name: row.name,
+    slug: row.slug || "",
     score: row.score,
     title: row.title,
     verdict: row.verdict,
@@ -144,6 +183,7 @@ function fromDbRow(row: any): ScoreResult {
     avatarUrl: row.avatar_url,
     screenshots: row.screenshots || [],
     scrapedData: row.scraped_data || {},
+    userId: row.user_id || undefined,
     createdAt: row.created_at,
   };
 }
@@ -155,57 +195,83 @@ function fromDbRow(row: any): ScoreResult {
 export async function getLeaderboard(): Promise<ScoreResult[]> {
   if (isSupabaseConfigured && supabase) {
     const { data, error } = await supabase.from("evaluations").select("*").order("score", { ascending: false });
-    if (!error) return (data || []).map(fromDbRow);
-    console.error("Supabase getLeaderboard error:", error);
+    if (!error && data && data.length > 0) return data.map(fromDbRow);
+    if (error) console.error("Supabase getLeaderboard error:", error);
+    // Fall through to SQLite if Supabase returned empty or errored
   }
   return sqliteGetLeaderboard();
 }
 
 export async function saveScore(score: ScoreResult) {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from("evaluations").insert(toDbRow(score));
+    const { error } = await supabase.from("evaluations").upsert(toDbRow(score), { onConflict: "slug" });
     if (!error) return;
     console.error("Supabase saveScore error:", error);
   }
   sqliteSaveScore(score);
 }
 
-export async function getScore(id: string): Promise<ScoreResult | undefined> {
+export async function getScore(idOrSlug: string): Promise<ScoreResult | undefined> {
+  const lookup = toLookup(idOrSlug);
+
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase.from("evaluations").select("*").eq("id", id).single();
+    const col = lookup.id ? "id" : "slug";
+    const val = lookup.id || lookup.slug!;
+    const { data, error } = await supabase.from("evaluations").select("*").eq(col, val).maybeSingle();
     if (!error && data) return fromDbRow(data);
     if (error) console.error("Supabase getScore error:", error);
   }
-  return sqliteGetScore(id);
+  return sqliteGetScore(lookup);
 }
 
-export async function savePending(id: string, input: any) {
+export async function savePending(id: string, input: any, slug?: string, userId?: string) {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from("pending_jobs").insert({ id, input, status: "scraping-twitter" });
+    const row: any = { id, input, status: "scraping-twitter" };
+    if (slug) row.slug = slug;
+    if (userId) row.user_id = userId;
+    const { error } = await supabase.from("pending_jobs").insert(row);
     if (!error) return;
     console.error("Supabase savePending error:", error);
   }
-  sqliteSavePending(id, input);
+  sqliteSavePending(id, input, slug, userId);
 }
 
-export async function updatePendingStatus(id: string, status: PendingJob["status"], error?: string) {
+export async function updatePendingStatus(id: string, status: PendingJob["status"], error?: string, statusData?: StatusData) {
   if (isSupabaseConfigured && supabase) {
     const update: any = { status };
     if (error) update.error = error;
+    if (statusData) update.status_data = statusData;
     const { error: dbError } = await supabase.from("pending_jobs").update(update).eq("id", id);
     if (!dbError) return;
     console.error("Supabase updatePendingStatus error:", dbError);
   }
-  sqliteUpdatePendingStatus(id, status, error);
+  sqliteUpdatePendingStatus(id, status, error, statusData);
 }
 
-export async function getPendingStatus(id: string): Promise<{ status: string; error?: string } | null> {
+export async function getPendingStatus(idOrSlug: string): Promise<StatusResponse | null> {
+  const lookup = toLookup(idOrSlug);
+
   if (isSupabaseConfigured && supabase) {
-    const { data, error } = await supabase.from("pending_jobs").select("status, error").eq("id", id).single();
-    if (!error && data) return { status: data.status, error: data.error ?? undefined };
+    const col = lookup.id ? "id" : "slug";
+    const val = lookup.id || lookup.slug!;
+    const { data, error } = await supabase
+      .from("pending_jobs")
+      .select("status, error, status_data, slug, input")
+      .eq(col, val)
+      .maybeSingle();
+    if (!error && data) {
+      const input = data.input || {};
+      return {
+        status: data.status,
+        error: data.error ?? undefined,
+        stats: data.status_data ?? undefined,
+        name: typeof input === "object" ? input.name : undefined,
+        slug: data.slug ?? undefined,
+      };
+    }
     if (error) console.error("Supabase getPendingStatus error:", error);
   }
-  return sqliteGetPendingStatus(id);
+  return sqliteGetPendingStatus(lookup);
 }
 
 export async function removePending(id: string) {

@@ -13,6 +13,8 @@ export const submitSchema = z.object({
 
 export const judgeSchema = z.object({
   id: z.string().uuid().optional(),
+  slug: z.string().max(80).optional().default(""),
+  userId: z.string().optional(),
   name: z.string().min(1, "Name is required").max(200),
   twitter: z.string().max(500).optional().default(""),
   linkedin: z.string().max(500).optional().default(""),

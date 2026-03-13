@@ -59,7 +59,7 @@ export default function ProfilePage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => router.push(`/score/${ev.id}`)}
+              onClick={() => router.push(ev.slug ? `/@${ev.slug}` : `/score/${ev.id}`)}
               className="flex items-center gap-4 p-5 bg-card-bg border border-border rounded-xl cursor-pointer hover:shadow-card-hover transition shadow-card"
             >
               <img src={ev.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover border border-border" />

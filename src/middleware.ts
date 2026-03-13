@@ -2,6 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Rewrite /@{slug} → /p/{slug} (Next.js reserves @ for parallel routes)
+  if (pathname.startsWith("/@")) {
+    const slug = pathname.slice(2); // strip "/@"
+    const url = request.nextUrl.clone();
+    url.pathname = `/p/${slug}`;
+    return NextResponse.rewrite(url);
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

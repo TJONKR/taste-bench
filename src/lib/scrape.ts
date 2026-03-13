@@ -9,6 +9,9 @@ export interface TwitterData {
   followers?: number;
   following?: number;
   tweets: string[];
+  oldestTweetDate?: string;
+  newestTweetDate?: string;
+  dateRangeSummary?: string;
 }
 
 export interface LinkedInData {
@@ -46,7 +49,7 @@ async function runApifyActor(actorId: string, input: any, timeoutSecs = 60): Pro
 
     console.log(`Apify actor ${actorId} completed, fetching dataset ${datasetId}...`);
     const dataRes = await fetch(
-      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}&limit=50`
+      `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_TOKEN}&limit=250`
     );
     
     if (!dataRes.ok) return [];
@@ -69,7 +72,7 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
     tweetsDesired: 200,
     addUserInfo: true,
     proxyConfig: { useApifyProxy: true },
-  }, 60);
+  }, 120);
 
   if (items.length > 0) {
     // Filter: only keep tweets from the correct user (verification!)
@@ -102,6 +105,8 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
       result.following = first.user.friends_count;
     }
 
+    // Parse dates and build tweets with timestamps
+    const tweetDates: Date[] = [];
     result.tweets = verified
       .map((item: any) => {
         const text = item.fullText || item.full_text || item.text || "";
@@ -110,10 +115,26 @@ export async function scrapeTwitter(handle: string): Promise<TwitterData> {
         const isRetweet = text.startsWith("RT @") || item.isRetweet || item.retweeted;
         const isQuote = !!item.quoteId || item.isQuote;
         const prefix = isRetweet ? "[RETWEET] " : isQuote ? "[QUOTE TWEET] " : "[ORIGINAL] ";
-        return text ? `${prefix}${text} [${likes} likes, ${rts} RTs]` : "";
+        const dateStr = item.createdAt || item.created_at || item.timestamp;
+        const date = dateStr ? new Date(dateStr) : null;
+        if (date && !isNaN(date.getTime())) tweetDates.push(date);
+        const dateTag = date && !isNaN(date.getTime()) ? ` ${date.toISOString().slice(0, 10)}` : "";
+        return text ? `${prefix}${text} [${likes} likes, ${rts} RTs]${dateTag}` : "";
       })
       .filter(Boolean)
       .slice(0, 200);
+
+    // Calculate date range coverage
+    if (tweetDates.length > 0) {
+      tweetDates.sort((a, b) => a.getTime() - b.getTime());
+      const oldest = tweetDates[0];
+      const newest = tweetDates[tweetDates.length - 1];
+      result.oldestTweetDate = oldest.toISOString().slice(0, 10);
+      result.newestTweetDate = newest.toISOString().slice(0, 10);
+      const daySpan = Math.round((newest.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24));
+      result.dateRangeSummary = `${result.tweets.length} tweets spanning ${daySpan} days (${result.oldestTweetDate} to ${result.newestTweetDate})`;
+      console.log(`Twitter date range: ${result.dateRangeSummary}`);
+    }
   }
 
   // Fallback if first actor got nothing
@@ -317,4 +338,135 @@ export function getAvatarUrl(name: string, twitterAvatarUrl?: string, twitterHan
     return `https://unavatar.io/twitter/${clean}`;
   }
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=C45D3E`;
+}
+
+// ============================================================
+// GitHub scraping (free public API, no auth needed)
+// ============================================================
+
+export interface GitHubData {
+  username: string;
+  name?: string;
+  bio?: string;
+  company?: string;
+  location?: string;
+  blog?: string;
+  followers?: number;
+  following?: number;
+  publicRepos?: number;
+  topRepos: { name: string; description: string | null; stars: number; language: string | null; url: string }[];
+  starredRepos: { name: string; owner: string; description: string | null; stars: number; language: string | null }[];
+}
+
+export async function scrapeGitHub(username: string): Promise<GitHubData> {
+  const clean = username.replace(/https?:\/\/github\.com\//i, "").replace(/\/.*/, "").replace("@", "");
+  const result: GitHubData = { username: clean, topRepos: [], starredRepos: [] };
+
+  const headers = { "User-Agent": "TasteBench/1.0", Accept: "application/vnd.github.v3+json" };
+  const timeout = AbortSignal.timeout(10000);
+
+  try {
+    // Fetch profile + repos + starred in parallel
+    const [profileRes, reposRes, starredRes] = await Promise.all([
+      fetch(`https://api.github.com/users/${clean}`, { headers, signal: timeout }),
+      fetch(`https://api.github.com/users/${clean}/repos?sort=stars&direction=desc&per_page=30`, { headers, signal: timeout }),
+      fetch(`https://api.github.com/users/${clean}/starred?per_page=30`, { headers, signal: timeout }),
+    ]);
+
+    if (profileRes.ok) {
+      const p = await profileRes.json();
+      result.name = p.name;
+      result.bio = p.bio;
+      result.company = p.company;
+      result.location = p.location;
+      result.blog = p.blog;
+      result.followers = p.followers;
+      result.following = p.following;
+      result.publicRepos = p.public_repos;
+    }
+
+    if (reposRes.ok) {
+      const repos = await reposRes.json();
+      result.topRepos = repos
+        .filter((r: any) => !r.fork)
+        .slice(0, 20)
+        .map((r: any) => ({
+          name: r.name,
+          description: r.description,
+          stars: r.stargazers_count,
+          language: r.language,
+          url: r.html_url,
+        }));
+    }
+
+    if (starredRes.ok) {
+      const starred = await starredRes.json();
+      result.starredRepos = starred.slice(0, 30).map((r: any) => ({
+        name: r.name,
+        owner: r.owner?.login,
+        description: r.description,
+        stars: r.stargazers_count,
+        language: r.language,
+      }));
+    }
+
+    console.log(`GitHub: ${clean} — ${result.topRepos.length} repos, ${result.starredRepos.length} starred`);
+  } catch (e: any) {
+    console.error(`GitHub scrape error for ${clean}:`, e.message);
+  }
+
+  return result;
+}
+
+// ============================================================
+// YouTube transcript fetching (free, no API key)
+// ============================================================
+
+export interface YouTubeTranscriptData {
+  videoId: string;
+  title?: string;
+  transcript: string;
+}
+
+export async function fetchYouTubeTranscript(videoUrl: string): Promise<YouTubeTranscriptData | null> {
+  try {
+    // Extract video ID from various URL formats
+    const videoId = extractVideoId(videoUrl);
+    if (!videoId) return null;
+
+    const { YoutubeTranscript } = await import("youtube-transcript");
+    const items = await YoutubeTranscript.fetchTranscript(videoId);
+    if (!items || items.length === 0) return null;
+
+    // Combine transcript segments into readable text (cap at 10000 chars)
+    const transcript = items
+      .map((item: any) => item.text)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 10000);
+
+    console.log(`YouTube transcript: ${videoId} — ${transcript.length} chars`);
+    return { videoId, transcript };
+  } catch (e: any) {
+    console.error(`YouTube transcript error:`, e.message);
+    return null;
+  }
+}
+
+function extractVideoId(url: string): string | null {
+  // Handle various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  // Maybe it's already just a video ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+  return null;
 }

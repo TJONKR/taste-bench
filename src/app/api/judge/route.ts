@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { saveScore, updatePendingStatus, removePending } from "@/lib/leaderboard";
-import { scrapeTwitter, scrapeLinkedIn, scrapeWebsite, deepResearch, getScreenshotUrl, getAvatarUrl, fetchScreenshotAsBase64 } from "@/lib/scrape";
+import { fetchScreenshotAsBase64 } from "@/lib/scrape";
 import { ScoreResult, ScreenshotImage } from "@/lib/types";
 import { judgeSchema } from "@/lib/validation";
-import { runResearcher, runDimensionAnalysts, runWriter } from "@/lib/agents";
+import { runDimensionAnalysts, runWriter } from "@/lib/agents";
+import { runResearchAgent } from "@/lib/research-agent";
+import { decrypt } from "@/lib/crypto";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
-export const maxDuration = 240; // Allow up to 4 min (3-pass self-consistency + vision)
+export const maxDuration = 600; // 10 min
 
 export async function POST(req: Request) {
   let id = "";
@@ -16,162 +19,74 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map(i => i.message).join(", ") }, { status: 400 });
     }
-    const { name, twitter, linkedin, website, description } = parsed.data;
+    const { name, twitter, linkedin, website, description, slug: inputSlug, userId } = parsed.data;
     id = parsed.data.id || body.id || uuidv4();
+    const slug = inputSlug || "";
 
-    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-    // Step 1: Scrape Twitter
-    let twitterData = null;
-    await updatePendingStatus(id, "scraping-twitter");
-    if (twitter) {
-      twitterData = await scrapeTwitter(twitter);
-    }
-    await delay(3000); // Min 3s per step so user sees progress
-
-    // Step 2: Scrape LinkedIn
-    let linkedinData = null;
-    await updatePendingStatus(id, "scraping-linkedin");
-    if (linkedin) {
-      linkedinData = await scrapeLinkedIn(linkedin);
-    }
-    await delay(3000);
-
-    // Step 3: Scrape Website
-    let websiteData = null;
-    await updatePendingStatus(id, "scraping-website");
-    if (website) {
-      websiteData = await scrapeWebsite(website);
-    }
-    await delay(2000);
-
-    // Step 4: Deep web research
-    await updatePendingStatus(id, "deep-research");
-    const researchResults = await deepResearch(name, twitter, website);
-    await delay(2000);
-
-    // Step 5: Screenshots (URLs for display + base64 for vision analysis)
-    await updatePendingStatus(id, "capturing-screenshots");
-    const screenshots: { url: string; source: string }[] = [];
-    const screenshotUrls: { url: string; source: string }[] = [];
-    if (twitter) {
-      const clean = twitter.replace("@", "").replace(/https?:\/\/(twitter|x)\.com\//i, "").replace(/\/.*/, "");
-      const twitterUrl = `https://x.com/${clean}`;
-      screenshots.push({ url: getScreenshotUrl(twitterUrl), source: "Twitter/X" });
-      screenshotUrls.push({ url: twitterUrl, source: "Twitter/X" });
-    }
-    if (linkedin) {
-      screenshots.push({ url: getScreenshotUrl(linkedin), source: "LinkedIn" });
-      screenshotUrls.push({ url: linkedin, source: "LinkedIn" });
-    }
-    if (website) {
-      screenshots.push({ url: getScreenshotUrl(website), source: "Website" });
-      screenshotUrls.push({ url: website, source: "Website" });
-    }
-
-    // Fetch images for Claude Vision analysis:
-    // - Website: screenshot via thum.io (public page)
-    // - Twitter: banner + profile pic from CDN (public URLs, no auth needed)
-    // - LinkedIn: no visual (auth-walled, no public image URLs)
-    const screenshotImages: ScreenshotImage[] = [];
-
-    // Website screenshot
-    if (website) {
-      console.log("Fetching website screenshot for vision...");
-      const wsResult = await fetchScreenshotAsBase64(website);
-      if (wsResult) {
-        screenshotImages.push({ source: "Website", base64: wsResult.base64, mediaType: wsResult.mediaType });
+    // Resolve BYOK API key if userId provided
+    if (userId && isSupabaseConfigured && supabase) {
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("anthropic_api_key")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (settings?.anthropic_api_key) {
+        try {
+          decrypt(settings.anthropic_api_key);
+          // TODO: pass to research agent and dimension analysts
+        } catch (e: any) {
+          return NextResponse.json({ error: "Failed to decrypt API key" }, { status: 500 });
+        }
       }
     }
 
-    // Twitter profile images (banner + avatar) — direct CDN fetches, no auth
-    if (twitterData?.bannerUrl) {
+    // ── Phase 1: Deep Research Agent ──
+    // Single agentic loop replaces all fixed scrape steps + old researcher
+    const research = await runResearchAgent(id, name, twitter, linkedin, website, description);
+
+    // Fetch Twitter avatar/banner images for vision analysis
+    if (research.twitterData?.bannerUrl) {
       try {
         console.log("Fetching Twitter banner image for vision...");
-        const bannerRes = await fetch(`${twitterData.bannerUrl}/1500x500`, { signal: AbortSignal.timeout(10000) });
+        const bannerRes = await fetch(`${research.twitterData.bannerUrl}/1500x500`, { signal: AbortSignal.timeout(10000) });
         if (bannerRes.ok) {
           const buf = await bannerRes.arrayBuffer();
           const mediaType = (bannerRes.headers.get("content-type") || "image/png").split(";")[0];
-          screenshotImages.push({ source: "Twitter Banner", base64: Buffer.from(buf).toString("base64"), mediaType });
-          console.log(`Twitter banner captured (${Math.round(buf.byteLength / 1024)}KB)`);
+          research.screenshotImages.push({ source: "Twitter Banner", base64: Buffer.from(buf).toString("base64"), mediaType });
         }
       } catch (e: any) {
         console.error("Twitter banner fetch failed:", e.message);
       }
     }
-    if (twitterData?.avatarUrl) {
+    if (research.twitterData?.avatarUrl) {
       try {
         console.log("Fetching Twitter profile pic for vision...");
-        const avatarRes = await fetch(twitterData.avatarUrl, { signal: AbortSignal.timeout(10000) });
+        const avatarRes = await fetch(research.twitterData.avatarUrl, { signal: AbortSignal.timeout(10000) });
         if (avatarRes.ok) {
           const buf = await avatarRes.arrayBuffer();
           const mediaType = (avatarRes.headers.get("content-type") || "image/jpeg").split(";")[0];
-          screenshotImages.push({ source: "Twitter Profile Pic", base64: Buffer.from(buf).toString("base64"), mediaType });
-          console.log(`Twitter profile pic captured (${Math.round(buf.byteLength / 1024)}KB)`);
+          research.screenshotImages.push({ source: "Twitter Profile Pic", base64: Buffer.from(buf).toString("base64"), mediaType });
         }
       } catch (e: any) {
         console.error("Twitter avatar fetch failed:", e.message);
       }
     }
 
-    console.log(`Vision: ${screenshotImages.length} images captured for analysis`);
+    console.log(`[judge] Research complete: ${research.screenshotImages.length} images, sources: ${research.stats.dataSources?.join(", ")}`);
 
-    const avatarUrl = getAvatarUrl(name, twitterData?.avatarUrl, twitter);
+    // ── Phase 2: Dimension Analysts (3-pass self-consistency + vision) ──
+    await updatePendingStatus(id, "analyzing", undefined, research.stats);
+    const analysis = await runDimensionAnalysts(name, research.verifiedData, research.screenshotImages);
 
-    // Step 5: Build context
-    const parts: string[] = [`Name: ${name}`];
-
-    if (twitterData) {
-      parts.push(`=== TWITTER/X PROFILE ===
-Handle: @${twitterData.handle}
-Display Name: ${twitterData.displayName || "Unknown"}
-Bio: ${twitterData.bio || "None"}
-Followers: ${twitterData.followers ?? "Unknown"} | Following: ${twitterData.following ?? "Unknown"}
-Recent Tweets (${twitterData.tweets.length} captured):
-${twitterData.tweets.map((t: string, i: number) => `${i + 1}. ${t}`).join("\n")}`);
-    }
-
-    if (linkedinData) {
-      parts.push(`=== LINKEDIN PROFILE ===
-Headline: ${linkedinData.headline || "None"}
-Summary: ${linkedinData.summary || "None"}
-Experience: ${(linkedinData.experience || []).join(" → ") || "None"}
-Posts: ${(linkedinData.posts || []).map((p: string, i: number) => `${i + 1}. ${p}`).join("\n") || "None"}`);
-    }
-
-    if (websiteData) {
-      parts.push(`=== WEBSITE/PORTFOLIO ===\n${websiteData}`);
-    }
-
-    if (description) {
-      parts.push(`=== SELF-DESCRIPTION ===\n${description}`);
-    }
-
-    if (researchResults.length > 0) {
-      parts.push(`=== WEB RESEARCH (articles, mentions, interviews found online) ===
-${researchResults.map((r, i) => `${i + 1}. [${r.title}](${r.url})
-${r.snippet}
-${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n")}`);
-    }
-
-    const context = parts.join("\n\n---\n\n");
-
-    // Step 6: Agent pipeline - Researcher
-    await updatePendingStatus(id, "verifying-data");
-    const verifiedData = await runResearcher(name, context);
-
-    // Step 7: Agent pipeline - 6 parallel dimension analysts (3-pass self-consistency + vision)
-    await updatePendingStatus(id, "analyzing");
-    const analysis = await runDimensionAnalysts(name, verifiedData, screenshotImages);
-
-    // Step 8: Agent pipeline - Writer
-    await updatePendingStatus(id, "writing-report");
+    // ── Phase 3: Writer ──
+    await updatePendingStatus(id, "writing-report", undefined, research.stats);
     const report = await runWriter(name, analysis);
 
     const scoreResult: ScoreResult = {
       id,
       name,
-      score: report.score, // decimal, no rounding — v2 uses 0.00-100.00
+      slug,
+      score: report.score,
       title: report.title,
       verdict: report.verdict,
       levelProfile: report.levelProfile,
@@ -181,25 +96,26 @@ ${r.content ? `Content excerpt: ${r.content.slice(0, 1500)}` : ""}`).join("\n\n"
       crossPlatformConsistency: report.crossPlatformConsistency,
       recommendations: report.recommendations,
       input: { twitter, linkedin, website, description },
-      dataSources: [twitter && "twitter", linkedin && "linkedin", website && "website"].filter(Boolean) as string[],
-      avatarUrl,
-      screenshots,
+      dataSources: research.stats.dataSources || [],
+      avatarUrl: research.avatarUrl,
+      screenshots: research.screenshots,
       scrapedData: {
-        twitter: twitterData || undefined,
-        linkedin: linkedinData || undefined,
-        website: websiteData || undefined,
+        twitter: research.twitterData || undefined,
+        linkedin: research.verifiedData?.linkedin || undefined,
+        website: research.verifiedData?.website?.content || undefined,
       },
+      userId: userId || undefined,
       createdAt: new Date().toISOString(),
     };
 
     await saveScore(scoreResult);
+    console.log(`[judge] Score saved: ${scoreResult.name} = ${scoreResult.score} (${scoreResult.title})`);
     await updatePendingStatus(id, "complete");
     await removePending(id);
 
-    return NextResponse.json({ id });
+    return NextResponse.json({ id, slug });
   } catch (e: any) {
     console.error("Judge error:", e);
-    // Try to update pending status (id is defined in the try block scope)
     try { await updatePendingStatus(id, "error", e.message); } catch {}
     return NextResponse.json({ error: e.message || "Failed to judge" }, { status: 500 });
   }

@@ -23,6 +23,7 @@ export default function NavBar() {
                 </div>
                 <span className="hidden sm:inline">{user.email?.split("@")[0]}</span>
               </button>
+              <a href="/settings" className="text-xs text-ink/30 hover:text-ink/60 transition">Settings</a>
               <button onClick={() => signOut().then(() => router.refresh())}
                 className="text-xs text-ink/30 hover:text-ink/60 transition">
                 Sign Out

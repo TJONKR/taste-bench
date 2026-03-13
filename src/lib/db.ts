@@ -24,6 +24,7 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS evaluations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      slug TEXT UNIQUE,
       score REAL NOT NULL,
       title TEXT NOT NULL,
       verdict TEXT NOT NULL,
@@ -45,8 +46,11 @@ export function getDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS pending_jobs (
       id TEXT PRIMARY KEY,
       input TEXT, -- JSON object
+      slug TEXT UNIQUE,
       status TEXT NOT NULL DEFAULT 'scraping-twitter',
+      status_data TEXT, -- JSON object with step stats
       error TEXT,
+      user_id TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
@@ -60,6 +64,26 @@ export function getDb(): Database.Database {
   } catch {}
   try {
     _db.exec(`ALTER TABLE evaluations ADD COLUMN data_sources TEXT`);
+  } catch {}
+
+  // v3: progressive profile columns
+  try {
+    _db.exec(`ALTER TABLE evaluations ADD COLUMN slug TEXT`);
+  } catch {}
+  try {
+    _db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_evaluations_slug ON evaluations(slug)`);
+  } catch {}
+  try {
+    _db.exec(`ALTER TABLE pending_jobs ADD COLUMN slug TEXT`);
+  } catch {}
+  try {
+    _db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_jobs_slug ON pending_jobs(slug)`);
+  } catch {}
+  try {
+    _db.exec(`ALTER TABLE pending_jobs ADD COLUMN status_data TEXT`);
+  } catch {}
+  try {
+    _db.exec(`ALTER TABLE pending_jobs ADD COLUMN user_id TEXT`);
   } catch {}
 
   // Migrate existing JSON data on first run
