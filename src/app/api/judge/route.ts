@@ -43,15 +43,17 @@ export async function POST(req: Request) {
     // Single agentic loop replaces all fixed scrape steps + old researcher
     const research = await runResearchAgent(id, name, twitter, linkedin, website, description);
 
-    // Fetch Twitter avatar/banner images for vision analysis
+    // Fetch Twitter avatar/banner images for vision analysis + display
     if (research.twitterData?.bannerUrl) {
       try {
         console.log("Fetching Twitter banner image for vision...");
-        const bannerRes = await fetch(`${research.twitterData.bannerUrl}/1500x500`, { signal: AbortSignal.timeout(10000) });
+        const bannerUrl = `${research.twitterData.bannerUrl}/1500x500`;
+        const bannerRes = await fetch(bannerUrl, { signal: AbortSignal.timeout(10000) });
         if (bannerRes.ok) {
           const buf = await bannerRes.arrayBuffer();
           const mediaType = (bannerRes.headers.get("content-type") || "image/png").split(";")[0];
           research.screenshotImages.push({ source: "Twitter Banner", base64: Buffer.from(buf).toString("base64"), mediaType });
+          research.screenshots.push({ url: bannerUrl, source: "Twitter Banner" });
         }
       } catch (e: any) {
         console.error("Twitter banner fetch failed:", e.message);
@@ -60,11 +62,14 @@ export async function POST(req: Request) {
     if (research.twitterData?.avatarUrl) {
       try {
         console.log("Fetching Twitter profile pic for vision...");
+        // Use original size avatar for display
+        const fullAvatarUrl = research.twitterData.avatarUrl.replace("_normal", "").replace("_400x400", "");
         const avatarRes = await fetch(research.twitterData.avatarUrl, { signal: AbortSignal.timeout(10000) });
         if (avatarRes.ok) {
           const buf = await avatarRes.arrayBuffer();
           const mediaType = (avatarRes.headers.get("content-type") || "image/jpeg").split(";")[0];
           research.screenshotImages.push({ source: "Twitter Profile Pic", base64: Buffer.from(buf).toString("base64"), mediaType });
+          research.screenshots.push({ url: fullAvatarUrl, source: "Profile Picture" });
         }
       } catch (e: any) {
         console.error("Twitter avatar fetch failed:", e.message);

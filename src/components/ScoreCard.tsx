@@ -93,15 +93,18 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
           viewport={{ once: true }}
         >
           <p className="text-[11px] uppercase tracking-widest text-ink/25 mb-6">Evidence</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {data.screenshots.map((ss, i) => (
-              <div key={i} className="bg-card-bg border border-border rounded-lg overflow-hidden shadow-card">
-                <img src={ss.url} alt={ss.source} className="w-full h-44 object-cover object-top" loading="lazy" />
-                <div className="px-3 py-2">
-                  <p className="text-[11px] text-ink/30">{ss.source}</p>
+          <div className="space-y-4">
+            {data.screenshots.filter(ss => !ss.source.includes("Profile Picture")).map((ss, i) => {
+              const isWide = ss.source.includes("Banner") || ss.source.includes("Website") || ss.source.includes("Twitter");
+              return (
+                <div key={i} className={`bg-card-bg border border-border rounded-lg overflow-hidden shadow-card ${!isWide ? "max-w-sm" : ""}`}>
+                  <img src={ss.url} alt={ss.source} className={`w-full ${isWide ? "h-48 sm:h-64" : "h-44"} object-cover object-top`} loading="lazy" />
+                  <div className="px-3 py-2">
+                    <p className="text-[11px] text-ink/30">{ss.source}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </motion.section>
       )}
