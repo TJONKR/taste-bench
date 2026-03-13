@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 const labels: Record<string, string> = {
   curation: "Curation",
-  restraint: "Restraint",
+  intentionality: "Intentionality",
   originality: "Originality",
   conviction: "Conviction",
   identity: "Identity",

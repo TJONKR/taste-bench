@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ScoreResult } from "@/lib/types";
 
-type SortKey = "score" | "curation" | "restraint" | "originality" | "conviction" | "identity" | "selfAwareness";
+type SortKey = "score" | "curation" | "intentionality" | "originality" | "conviction" | "identity" | "selfAwareness";
 const dimKey = (k: SortKey) => k as keyof ScoreResult["dimensions"];
 
 function scoreColor(v: number): string {
@@ -44,7 +44,7 @@ export default function LeaderboardPage() {
   const cols: { key: SortKey; label: string }[] = [
     { key: "score", label: "Score" },
     { key: "curation", label: "Cur" },
-    { key: "restraint", label: "Res" },
+    { key: "intentionality", label: "Int" },
     { key: "originality", label: "Orig" },
     { key: "conviction", label: "Conv" },
     { key: "identity", label: "Iden" },
@@ -90,7 +90,7 @@ export default function LeaderboardPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.04 }}
-                  onClick={() => router.push(`/score/${s.id}`)}
+                  onClick={() => router.push(s.slug ? `/@${s.slug}` : `/score/${s.id}`)}
                   className={`border-b border-border/50 cursor-pointer hover:bg-ink/[0.02] transition ${rankLabel(i)}`}
                 >
                   <td className="py-4 px-3 font-serif font-bold text-ink/40 text-center">{i + 1}</td>

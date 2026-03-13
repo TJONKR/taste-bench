@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ScoreResult } from "@/lib/types";
 
-type SortKey = "score" | "curation" | "restraint" | "originality" | "conviction" | "identity" | "selfAwareness";
+type SortKey = "score" | "curation" | "intentionality" | "originality" | "conviction" | "identity" | "selfAwareness";
 const dimKey = (k: SortKey) => k as keyof ScoreResult["dimensions"];
 
 function scoreColor(v: number): string {
@@ -15,10 +15,6 @@ function scoreColor(v: number): string {
 
 export default function Home() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", twitter: "", linkedin: "", website: "", description: "" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showForm, setShowForm] = useState(false);
   const [leaderboard, setLeaderboard] = useState<ScoreResult[]>([]);
   const [sortBy, setSortBy] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
@@ -26,26 +22,6 @@ export default function Home() {
   useEffect(() => {
     fetch("/api/leaderboard").then(r => r.json()).then(setLeaderboard).catch(() => {});
   }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) { setError("Name is required"); return; }
-    if (!form.twitter && !form.linkedin && !form.website && !form.description) {
-      setError("Fill at least one field besides name"); return;
-    }
-    setLoading(true); setError("");
-    try {
-      const res = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      router.push(`/judge/${data.id}`);
-    } catch (e: any) {
-      setError(e.message); setLoading(false);
-    }
-  };
-
-  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [key]: e.target.value }));
 
   const totalJudged = leaderboard.length;
   const avgScore = totalJudged > 0
@@ -73,7 +49,7 @@ export default function Home() {
   const cols: { key: SortKey; label: string }[] = [
     { key: "score", label: "Score" },
     { key: "curation", label: "Cur" },
-    { key: "restraint", label: "Res" },
+    { key: "intentionality", label: "Int" },
     { key: "originality", label: "Orig" },
     { key: "conviction", label: "Conv" },
     { key: "identity", label: "Iden" },
@@ -114,12 +90,12 @@ export default function Home() {
           transition={{ delay: 0.3 }}
           className="mt-8"
         >
-          <button
-            onClick={() => setShowForm(!showForm)}
+          <a
+            href="/evaluate"
             className="text-accent hover:text-accent-hover transition text-sm font-medium tracking-wide inline-flex items-center gap-1.5"
           >
-            {showForm ? "Close" : "Get Judged"} <span className="text-base">→</span>
-          </button>
+            Get Judged <span className="text-base">→</span>
+          </a>
         </motion.div>
 
         {totalJudged > 0 && (
@@ -134,48 +110,14 @@ export default function Home() {
         )}
       </section>
 
-      {/* Collapsible Submit Form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="max-w-2xl mx-auto px-6 overflow-hidden"
-          >
-            <div className="mb-12 p-8 bg-card-bg border border-border rounded-xl shadow-card">
-              <h2 className="font-serif text-lg font-semibold text-ink mb-5">Submit yourself for evaluation</h2>
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input placeholder="Name *" value={form.name} onChange={set("name")} required
-                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
-                <input placeholder="@twitter or x.com/handle" value={form.twitter} onChange={set("twitter")}
-                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
-                <input placeholder="LinkedIn profile URL" value={form.linkedin} onChange={set("linkedin")}
-                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
-                <input placeholder="Website / Portfolio URL" value={form.website} onChange={set("website")}
-                  className="px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition text-sm text-ink placeholder:text-ink/30" />
-                <textarea placeholder="Anything else about yourself..." value={form.description} onChange={set("description")} rows={2}
-                  className="sm:col-span-2 px-4 py-3 bg-canvas border border-border rounded-lg focus:outline-none focus:border-accent transition resize-none text-sm text-ink placeholder:text-ink/30" />
-                {error && <p className="text-score-low text-sm sm:col-span-2">{error}</p>}
-                <button type="submit" disabled={loading}
-                  className="sm:col-span-2 py-3 bg-accent hover:bg-accent-hover disabled:opacity-50 rounded-lg font-medium text-sm text-white transition-colors">
-                  {loading ? "Submitting..." : "Run Deep Analysis →"}
-                </button>
-              </form>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Leaderboard Section */}
       <section className="max-w-6xl mx-auto px-6 pb-16">
         {leaderboard.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-ink/30 text-lg font-light">No one has been judged yet.</p>
-            <button onClick={() => setShowForm(true)} className="mt-4 text-accent hover:text-accent-hover text-sm transition">
+            <a href="/evaluate" className="mt-4 text-accent hover:text-accent-hover text-sm transition inline-block">
               Be the first →
-            </button>
+            </a>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -200,7 +142,7 @@ export default function Home() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: i * 0.04 }}
-                    onClick={() => router.push(`/score/${s.id}`)}
+                    onClick={() => router.push(s.slug ? `/@${s.slug}` : `/score/${s.id}`)}
                     className={`border-b border-border/50 cursor-pointer hover:bg-ink/[0.02] transition ${rankLabel(i)}`}
                   >
                     <td className="py-4 px-3 font-serif font-bold text-ink/40 text-center">{i + 1}</td>
@@ -249,7 +191,7 @@ export default function Home() {
               Everyone has taste. Most people&apos;s is unconscious. The Taste Bench makes it visible.
             </p>
             <p className="text-ink/30 text-sm pt-2">
-              We evaluate across six dimensions: Curation, Restraint, Originality, Conviction, Identity, and Self-Awareness.
+              We evaluate across six dimensions: Curation, Intentionality, Originality, Conviction, Identity, and Self-Awareness.
               {" "}
               <a href="/methodology" className="text-accent hover:text-accent-hover transition underline underline-offset-2">Read our full methodology →</a>
             </p>
@@ -273,18 +215,18 @@ export default function Home() {
               { num: "01", title: "Submit", desc: "Share your name and public profiles — Twitter, LinkedIn, website, anything." },
               { num: "02", title: "Deep Research", desc: "AI scrapes 200+ posts, captures screenshots, and researches your digital footprint." },
               { num: "03", title: "The Verdict", desc: "A brutally honest taste audit across 6 dimensions. No appeals, no refunds." },
-            ].map((step, i) => (
+            ].map((s, i) => (
               <motion.div
-                key={step.num}
+                key={s.num}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
                 className="text-center"
               >
-                <span className="font-serif text-4xl font-bold text-ink/10">{step.num}</span>
-                <h3 className="font-serif text-lg font-semibold mt-2 mb-2">{step.title}</h3>
-                <p className="text-ink/40 text-sm leading-relaxed">{step.desc}</p>
+                <span className="font-serif text-4xl font-bold text-ink/10">{s.num}</span>
+                <h3 className="font-serif text-lg font-semibold mt-2 mb-2">{s.title}</h3>
+                <p className="text-ink/40 text-sm leading-relaxed">{s.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -301,7 +243,7 @@ export default function Home() {
           >
             <p className="text-[11px] uppercase tracking-widest text-ink/25 mb-6 text-center">Highest Scored</p>
             <div
-              onClick={() => router.push(`/score/${featured.id}`)}
+              onClick={() => router.push(featured.slug ? `/@${featured.slug}` : `/score/${featured.id}`)}
               className="bg-card-bg border border-border rounded-xl p-8 shadow-card hover:shadow-card-hover transition cursor-pointer"
             >
               <div className="flex items-start gap-6">

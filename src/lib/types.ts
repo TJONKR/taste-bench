@@ -9,6 +9,7 @@ export interface ScreenshotImage {
 export interface ScoreResult {
   id: string;
   name: string;
+  slug: string;
   score: number; // 0.00-100.00, two decimal places
   title: string;
   verdict: string;
@@ -16,7 +17,7 @@ export interface ScoreResult {
   overallLevel: string; // e.g., "Level 3: Vision"
   dimensions: {
     curation: { score: number; level: TasteLevel; note: string };
-    restraint: { score: number; level: TasteLevel; note: string };
+    intentionality: { score: number; level: TasteLevel; note: string };
     originality: { score: number; level: TasteLevel; note: string };
     conviction: { score: number; level: TasteLevel; note: string };
     identity: { score: number; level: TasteLevel; note: string };
@@ -35,7 +36,41 @@ export interface ScoreResult {
   avatarUrl: string;
   screenshots: { url: string; source: string }[];
   scrapedData: { twitter?: any; linkedin?: any; website?: string };
+  userId?: string;
   createdAt: string;
+}
+
+export interface StatusData {
+  tweetCount?: number;
+  linkedinPostCount?: number;
+  dataSources?: string[];
+  screenshotsCaptured?: number;
+}
+
+export type EvaluationStatus =
+  | "scraping-twitter"
+  | "scraping-linkedin"
+  | "scraping-website"
+  | "deep-research"
+  | "capturing-screenshots"
+  | "verifying-data"
+  | "analyzing"
+  | "writing-report"
+  | "complete"
+  | "error";
+
+export interface StatusResponse {
+  status: EvaluationStatus;
+  step?: number;
+  stats?: StatusData;
+  name?: string;
+  slug?: string;
+  error?: string;
+}
+
+export interface SettingsResponse {
+  hasKey: boolean;
+  keyValidatedAt: string | null;
 }
 
 // Agent 1 output: verified, cleaned data (unchanged from v1)
@@ -90,13 +125,13 @@ export interface DimensionResult {
 export interface AnalysisResult {
   dimensions: {
     curation: DimensionResult;
-    restraint: DimensionResult;
+    intentionality: DimensionResult;
     originality: DimensionResult;
     conviction: DimensionResult;
     identity: DimensionResult;
     selfAwareness: DimensionResult;
   };
-  compositeScore: number; // level-weighted: (Cur*0.125)+(Res*0.125)+(Ori*0.175)+(Con*0.175)+(Id*0.20)+(SA*0.20)
+  compositeScore: number; // level-weighted: (Cur*0.125)+(Int*0.125)+(Ori*0.175)+(Con*0.175)+(Id*0.20)+(SA*0.20)
   levelProfile: string; // e.g., "L2-L3-L3-L2-L4-L3"
   overallLevel: string; // e.g., "Level 3: Vision"
   patterns: string[]; // computed by comparing across dimension results
@@ -113,7 +148,7 @@ export interface TasteReport {
   overallLevel: string;
   dimensions: {
     curation: { score: number; level: TasteLevel; note: string };
-    restraint: { score: number; level: TasteLevel; note: string };
+    intentionality: { score: number; level: TasteLevel; note: string };
     originality: { score: number; level: TasteLevel; note: string };
     conviction: { score: number; level: TasteLevel; note: string };
     identity: { score: number; level: TasteLevel; note: string };

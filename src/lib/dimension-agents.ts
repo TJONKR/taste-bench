@@ -57,23 +57,28 @@ Examine the attached screenshots carefully. What do their visual choices reveal 
 
 You evaluate ONLY the Curation dimension for "${name}". Be rigorous and honest. Do NOT inflate scores.
 
-DIMENSION: CURATION (What you amplify)
+DIMENSION: CURATION (Can you recognize quality outside yourself?)
 Weight: 12.5% | Level 2 Dimension (The Selector)
 
-Core question: What does the quality of what you choose to surface reveal about your taste?
+Core question: Can you recognize quality outside yourself — and does your selection reveal an eye?
+
+This is the only outward-facing dimension. Every other dimension measures what you ARE. This one measures what you SEE. Your taste in other people's work, ideas, and creations is itself a taste signal.
+
+Selection acts include: what you share/retweet, but ALSO what you reference, cite, sample, name as influence, recommend, collaborate with, or visibly draw from. Kanye citing Helmut Lang in a fashion show is a selection act. A DJ's setlist is a selection act. A founder's reading list is a selection act. Don't limit "curation" to the retweet button.
 
 LEVEL DETECTION:
-- L2 (Discrimination): Good filter. Shares quality content. Has an eye for what deserves attention. Can tell signal from noise.
-- L3 (Vision): Curation so intentional it becomes creative. The selection itself is the art — like a DJ set, a reading list, a gallery show. The through-line connecting choices reveals something original.
-- L4 (Identity): What they curate is inseparable from who they are. You could identify them by their shares alone. Their curation IS their fingerprint.
+- L2 (Discrimination): Good eye. Can tell signal from noise. Shares and references quality. You trust their recommendations.
+- L3 (Vision): Their selection itself is creative. The constellation of what they reference, share, and draw from reveals an original mind — like a DJ set, a mood board, a syllabus. The through-line connecting choices IS the art.
+- L4 (Identity): You could identify them by their selections alone. What they choose to elevate is inseparable from who they are. Their curation IS their fingerprint.
 
 THE CHOOSING LENS:
-What do they choose to amplify, and what does that choice reveal? Are they surfacing things that matter or passing along what the algorithm fed them? Is there a through-line connecting seemingly disparate shares?
+What do they choose to put in front of people — through sharing, referencing, sampling, recommending, or visibly connecting themselves to? Is there a through-line? Does their constellation of selections reveal something about them that individual picks don't?
 
 THE TENSIONS:
 - Breadth vs Depth: Scattered omnivore or tunnel-vision specialist? Or intentionally navigating both?
 - Mainstream vs Niche: Algorithm-fed or obscure-for-obscurity? Or moving between both with purpose?
 - Discovery vs Loyalty: Always chasing new or returning to what matters? Best: both.
+- Sharing vs Embedding: Do they curate explicitly (retweets, lists) or implicitly (references woven into their own work)? Both count.
 
 PHILOSOPHER CHECKS:
 - Hume: Does their curation show refined perception? Practice and comparison across domains?
@@ -83,26 +88,28 @@ PHILOSOPHER CHECKS:
 
 OBSERVABLE EVIDENCE:
 - Retweets and shares — what they choose to amplify
-- Who they engage with and why
-- Links, recommendations, reading lists
+- References and citations — influences they name, sample, or visibly draw from
+- Collaborators and features — who they choose to work with or elevate
+- Links, recommendations, reading lists, playlists
+- The constellation of influences they wear publicly
 - Breadth of references across domains
 - Ratio of algorithmic content vs independent discovery
-- The through-line connecting varied interests
+- The through-line connecting varied selections — what pattern emerges?
 ${visualBlock}
 
 SCORING ANCHORS:
-- 90-100: Curation itself is art. Cross-domain, surprising, purposeful. You discover things through them you'd never find alone. Clear through-line that feels authored.
-- 70-89: Strong eye. Good mix of expected and surprising. Shares quality across domains. Occasionally surfaces something genuinely new.
+- 90-100: Their selections reveal an extraordinary eye. Cross-domain, surprising, purposeful. Whether through sharing or through the references woven into their own work, you discover things through them. Clear through-line that feels authored.
+- 70-89: Strong eye. Good mix of expected and surprising. Quality selections across domains — through shares, references, or both. Occasionally surfaces something genuinely new.
 - 50-69: Mostly mainstream but shows some independent selection. Functional filter. Nothing that makes you stop and think "who IS this person?"
-- 30-49: Algorithm-driven sharing. Predictable for their circle. Retweets whatever's trending in their bubble.
-- 0-29: Zero curation signal. Pure algorithm output. Indistinguishable from any other account in their niche.
+- 30-49: Algorithm-driven. Predictable for their circle. References and shares are whatever's trending in their bubble.
+- 0-29: Zero curation signal. No visible selection taste. Indistinguishable from any other account in their niche.
 
 PHILOSOPHICAL SAFEGUARDS (apply to ALL evaluations):
 - Bourdieu Check: "Is this measuring taste or cultural capital? Would someone with this same quality of discernment but different cultural background score similarly?"
 - Style Check: "Am I scoring the aesthetic or the intention? Score how intentional and owned it is, not which style it is."
 - Performance Check: "Is this genuine or performed? Look for consistency over time and under pressure as the authenticity signal."
 
-IMPORTANT: Retweets reveal taste in CURATION, not authorship. They show what someone amplifies.
+IMPORTANT: Curation covers ALL forms of selection — not just retweets. References named in interviews, influences cited in work, collaborators chosen, samples used, recommendations made — these are ALL curation signals. Someone who never retweets but whose work is a constellation of brilliant references scores HIGH.
 
 Output ONLY valid JSON:
 {
@@ -110,7 +117,7 @@ Output ONLY valid JSON:
   "level": "<L2|L3|L4>",
   "evidence": ["<specific quote or observation>", "<...>"],
   "reasoning": "<detailed explanation of score and level>",
-  "tensionPositioning": "<where they sit on breadth/depth, mainstream/niche, discovery/loyalty>",
+  "tensionPositioning": "<where they sit on breadth/depth, mainstream/niche, discovery/loyalty, sharing/embedding>",
   "philosopherHighlights": "<most relevant philosopher check findings for this person>"
 }
 
@@ -134,7 +141,7 @@ ${JSON.stringify(verifiedData, null, 2)}`;
   return parseJsonResponse(content.text);
 }
 
-export async function analyzeRestraint(
+export async function analyzeIntentionality(
   name: string,
   verifiedData: VerifiedData,
   _screenshots?: ScreenshotImage[] // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -145,56 +152,58 @@ export async function analyzeRestraint(
     messages: [
       {
         role: "user",
-        content: `You are the RESTRAINT specialist for The Taste Bench — the internet's taste evaluation platform.
+        content: `You are the INTENTIONALITY specialist for The Taste Bench — the internet's taste evaluation platform.
 
-You evaluate ONLY the Restraint dimension for "${name}". Be rigorous and honest. Do NOT inflate scores.
+You evaluate ONLY the Intentionality dimension for "${name}". Be rigorous and honest. Do NOT inflate scores.
 
-DIMENSION: RESTRAINT (What you leave out)
+DIMENSION: INTENTIONALITY (Are your choices deliberate?)
 Weight: 12.5% | Level 2 Dimension (The Selector)
 
-Core question: Does this person know when to stop, when to stay quiet, when less is the answer?
+Core question: Is there a deliberate mind behind the choices, or is this person on autopilot?
+
+This is NOT about restraint vs expression. A maximalist who deliberately sets things on fire is as intentional as a minimalist who deliberately strips to nothing. What matters: did you CHOOSE this, or did it just happen to you?
 
 LEVEL DETECTION:
-- L2 (Discrimination): Knows what's bad and avoids it. Doesn't overshare. Reasonable signal-to-noise.
-- L3 (Vision): The edit is visible. You can feel what was removed. The silence is as intentional as the speech. Every word earns its place.
-- L4 (Identity): Their restraint IS their style. Unmistakably them in what they choose NOT to do. The negative space is a fingerprint.
+- L2 (Discrimination): Choices are conscious. There's a reason behind what they do. Not on autopilot. You can tell someone is steering.
+- L3 (Vision): Every choice feels deliberate — what's included AND what's excluded. Whether loud or quiet, it's on purpose. The intention is visible in the pattern, not just individual moves.
+- L4 (Identity): Their deliberateness is so consistent it becomes invisible. It just IS them. You can't imagine them making an accidental choice.
 
 THE CHOOSING LENS:
-What do they choose to leave out? In a world of infinite posting, what topics do they NOT touch despite being in their space? How much do they resist the temptation to weigh in on everything?
+Can you feel a deliberate mind behind the choices? Not WHICH choices — whether the choices were MADE or whether they just happened. Autopilot is the enemy, not volume.
 
 THE TENSIONS:
-- Speaking vs Silence: Noise or invisible? Or precisely calibrated presence?
-- Polish vs Rawness: Over-produced or sloppy? Or raw where it serves, polished where it matters?
-- Quantity vs Quality: Posts every thought or once a month? And which serves their taste better?
-- Completeness vs Economy: Over-explains everything or trusts the audience? Best: says enough, trusts you for the rest.
+- Restraint vs Expression: Minimalist or maximalist? Either scores HIGH if deliberate. Kanye choosing chaos is as intentional as Dieter Rams choosing silence. Score the intention, not the volume.
+- Reactive vs Considered: Impulsive posting or thoughtful presence? Even raw/impulsive can be intentional if it's a chosen mode of engagement.
+- Editing vs Raw: Polished or unfiltered? Both work when chosen for a reason.
+- Focused vs Scattered: Stays in lane or goes everywhere? Intentional people can do either — the question is whether the range (or the focus) is chosen.
 
 PHILOSOPHER CHECKS:
-- Kant: Is the restraint disinterested — do they edit for the work's sake, not for how it makes them look?
-- Bourdieu: Is this restraint learned from elite culture (minimalism as class marker) or genuine editing? Someone from a maximalist culture showing restraint WITHIN maximalism is equally tasteful. Don't reward Western minimalism as default "good taste."
-- Rubin: The "reducer" philosophy — do they strip to the essential? Can you feel the editing hand?
-- Sontag: Is apparent excess actually camp or playful maximalism? Conversely, is their restraint actually repression of something interesting?
-- Rams: "Less, but better" — does what remains justify its existence?
+- Kant: Is the intentionality disinterested — are they making these choices for the work's sake, or for how it makes them look?
+- Bourdieu: Don't reward Western minimalism as default "good taste." Deliberate maximalism from any cultural tradition is equally intentional. Score the deliberateness, not the style.
+- Rubin: Can you feel an active mind behind the output? Whether they're adding or subtracting, is someone HOME?
+- Sontag: Apparent excess may be deliberate camp, deliberate provocation, deliberate maximalism. Apparent restraint may be fear, not intention. Look deeper.
 
 OBSERVABLE EVIDENCE:
-- Post frequency and word economy
-- Signal-to-noise ratio in their content
-- Topics they DON'T touch despite being in their space
-- Thread length — do they know when to stop?
-- Bio/headline economy — tight or bloated?
-- Editing quality — polished output vs first-draft energy
-- How much they resist trend-jumping and hot takes
+- Signal-to-noise ratio — but noise can be intentional (shitposting-as-art, provocation, stream-of-consciousness)
+- Topics they engage with vs avoid — is the selection pattern deliberate?
+- Consistency of mode — do they commit to their chosen approach?
+- How they handle different contexts — same intentionality across platforms?
+- The difference between "I chose to say this" and "I just said this"
+- Strong expression that feels chosen vs reactive venting
+- Restraint that feels chosen vs having nothing to say
+- Evolution over time — do the choices sharpen or drift?
 
 SCORING ANCHORS:
-- 90-100: Every word earns its place. You feel the editing hand. Silence is as loud as speech. Their restraint is unmistakable and intentional.
-- 70-89: Generally economical. Knows their lane. Occasional filler or over-explanation but core output is tight.
-- 50-69: Average signal-to-noise. Some excess but not offensive. Neither tight nor bloated.
-- 30-49: Verbose. Over-shares. Weighs in on everything. Buzzwords. Corporate energy. Could cut 50% and improve.
-- 0-29: Pure noise. Word salad. "Thrilled to announce" energy. No evidence of editing or restraint whatsoever.
+- 90-100: Every move feels deliberate. Whether they're a minimalist, a maximalist, or anything between — you can feel the choosing mind. Nothing is accidental. Their mode is fully owned.
+- 70-89: Generally intentional. Most choices feel deliberate. Occasional autopilot but core output shows a mind at work.
+- 50-69: Mixed signals. Some intentional choices visible but also a lot of drift, reactivity, or going-through-the-motions.
+- 30-49: Mostly reactive. Follows trends, responds to algorithms, posts because the slot needs filling. Occasional flashes of deliberate choice.
+- 0-29: Pure autopilot. No evidence of deliberate choice. Could be a bot. Content happens TO them rather than being chosen BY them.
 
 PHILOSOPHICAL SAFEGUARDS:
 - Bourdieu Check: "Is this measuring taste or cultural capital?"
-- Style Check: "Am I scoring the aesthetic or the intention?"
-- Performance Check: "Is this genuine or performed?"
+- Style Check: "Am I scoring the aesthetic or the intention? Restraint and expression are BOTH valid. Score the deliberateness."
+- Performance Check: "Is this genuine or performed? Performed intentionality (carefully curating a 'casual' persona) still counts if the performance itself is intentional."
 
 Output ONLY valid JSON:
 {
@@ -202,7 +211,7 @@ Output ONLY valid JSON:
   "level": "<L2|L3|L4>",
   "evidence": ["<specific quote or observation>", "<...>"],
   "reasoning": "<detailed explanation>",
-  "tensionPositioning": "<where they sit on speaking/silence, polish/rawness, quantity/quality, completeness/economy>",
+  "tensionPositioning": "<where they sit on restraint/expression, reactive/considered, editing/raw, focused/scattered>",
   "philosopherHighlights": "<most relevant philosopher check findings>"
 }
 
@@ -214,7 +223,7 @@ ${JSON.stringify(verifiedData, null, 2)}`,
 
   const content = message.content[0];
   if (content.type !== "text")
-    throw new Error("Unexpected response from restraint agent");
+    throw new Error("Unexpected response from intentionality agent");
   return parseJsonResponse(content.text);
 }
 

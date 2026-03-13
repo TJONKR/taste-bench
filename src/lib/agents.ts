@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { VerifiedData, AnalysisResult, TasteReport, DimensionResult, TasteLevel, ScreenshotImage } from "./types";
 import {
   analyzeCuration,
-  analyzeRestraint,
+  analyzeIntentionality,
   analyzeOriginality,
   analyzeConviction,
   analyzeIdentity,
@@ -106,7 +106,7 @@ ${rawContext}`,
 // Agent 2: 6 parallel dimension analysts with 3-pass self-consistency
 const WEIGHTS = {
   curation: 0.125,
-  restraint: 0.125,
+  intentionality: 0.125,
   originality: 0.175,
   conviction: 0.175,
   identity: 0.20,
@@ -198,14 +198,14 @@ export async function runDimensionAnalysts(
   // All 18 calls run in parallel (3 passes × 6 dimensions)
   const [
     curation,
-    restraint,
+    intentionality,
     originality,
     conviction,
     identity,
     selfAwareness,
   ] = await Promise.all([
     runWithConsistency(analyzeCuration, name, verifiedData, screenshots),
-    runWithConsistency(analyzeRestraint, name, verifiedData),
+    runWithConsistency(analyzeIntentionality, name, verifiedData),
     runWithConsistency(analyzeOriginality, name, verifiedData),
     runWithConsistency(analyzeConviction, name, verifiedData),
     runWithConsistency(analyzeIdentity, name, verifiedData, screenshots),
@@ -214,7 +214,7 @@ export async function runDimensionAnalysts(
 
   const dimensions = {
     curation,
-    restraint,
+    intentionality,
     originality,
     conviction,
     identity,
@@ -224,7 +224,7 @@ export async function runDimensionAnalysts(
   const compositeScore = parseFloat(
     (
       curation.score * WEIGHTS.curation +
-      restraint.score * WEIGHTS.restraint +
+      intentionality.score * WEIGHTS.intentionality +
       originality.score * WEIGHTS.originality +
       conviction.score * WEIGHTS.conviction +
       identity.score * WEIGHTS.identity +
@@ -234,7 +234,7 @@ export async function runDimensionAnalysts(
 
   const levelProfile = [
     curation.level,
-    restraint.level,
+    intentionality.level,
     originality.level,
     conviction.level,
     identity.level,
@@ -308,7 +308,7 @@ TITLE GUIDELINES (max 6 words) — reference these tiers based on the composite 
 WRITING INSTRUCTIONS:
 1. **title**: A witty title (max 6 words) that captures "${name}"'s overall impression. Be creative — don't just copy the examples above.
 2. **verdict**: 3-4 lines, brutal but insightful. This is the hook.
-3. **Dimension notes**: For EACH of the 6 dimensions (curation, restraint, originality, conviction, identity, selfAwareness), write a FULL PARAGRAPH (3-5 sentences) that references specific evidence from the analysis. Use the evidence[] and reasoning provided by the analyst, but rewrite in your editorial voice. Make it vivid and specific.
+3. **Dimension notes**: For EACH of the 6 dimensions (curation, intentionality, originality, conviction, identity, selfAwareness), write a FULL PARAGRAPH (3-5 sentences) that references specific evidence from the analysis. Use the evidence[] and reasoning provided by the analyst, but rewrite in your editorial voice. Make it vivid and specific.
 4. **tasteDNA**: 5-8 sentence analysis of their overall taste profile, influences, blind spots. This is the deep read.
 5. **crossPlatformConsistency**: A paragraph on how their identity holds (or doesn't) across platforms.
 6. **recommendations**: 3 specific, actionable things "${name}" can do to improve their taste score. Not generic advice — tailored to what you've seen.
@@ -329,7 +329,7 @@ Output ONLY valid JSON matching this exact structure:
   "overallLevel": "${analysis.overallLevel}",
   "dimensions": {
     "curation": { "score": ${analysis.dimensions.curation.score}, "level": "${analysis.dimensions.curation.level}", "note": "<full paragraph>" },
-    "restraint": { "score": ${analysis.dimensions.restraint.score}, "level": "${analysis.dimensions.restraint.level}", "note": "<full paragraph>" },
+    "intentionality": { "score": ${analysis.dimensions.intentionality.score}, "level": "${analysis.dimensions.intentionality.level}", "note": "<full paragraph>" },
     "originality": { "score": ${analysis.dimensions.originality.score}, "level": "${analysis.dimensions.originality.level}", "note": "<full paragraph>" },
     "conviction": { "score": ${analysis.dimensions.conviction.score}, "level": "${analysis.dimensions.conviction.level}", "note": "<full paragraph>" },
     "identity": { "score": ${analysis.dimensions.identity.score}, "level": "${analysis.dimensions.identity.level}", "note": "<full paragraph>" },

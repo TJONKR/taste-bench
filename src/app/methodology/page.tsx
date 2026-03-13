@@ -6,17 +6,17 @@ const dimensions = [
     name: "Curation",
     weight: "12.5%",
     level: "Level 2: Selector",
-    question: "What does the quality of what you choose to surface reveal about your taste?",
-    high: "Curation itself is art. Cross-domain, surprising, purposeful. Clear through-line that feels authored.",
-    low: "Zero curation signal. Pure algorithm output. Indistinguishable from any other account in their niche.",
+    question: "Can you recognize quality outside yourself? What do your selections — shares, references, influences — reveal about your eye?",
+    high: "Extraordinary eye. Cross-domain, surprising, purposeful selections. Whether through sharing or references in their work, you discover things through them.",
+    low: "Zero curation signal. No visible selection taste. Indistinguishable from any other account in their niche.",
   },
   {
-    name: "Restraint",
+    name: "Intentionality",
     weight: "12.5%",
     level: "Level 2: Selector",
-    question: "Does this person know when to stop, when to stay quiet, when less is the answer?",
-    high: "Every word earns its place. You feel the editing hand. Silence is as loud as speech.",
-    low: "Pure noise. Word salad. 'Thrilled to announce' energy. No evidence of editing or restraint.",
+    question: "Are your choices deliberate? Whether minimalist or maximalist — is there a mind behind the moves?",
+    high: "Every move feels deliberate. Whether loud or quiet, you can feel the choosing mind. Nothing is accidental.",
+    low: "Pure autopilot. No evidence of deliberate choice. Content happens TO them rather than being chosen BY them.",
   },
   {
     name: "Originality",
@@ -98,7 +98,7 @@ export default function MethodologyPage() {
         <div className="space-y-4">
           {[
             { level: "Level 1: Preference", desc: "&ldquo;I like this.&rdquo; Raw personal response. Everyone has it. Not scored — it&apos;s the soil taste grows in." },
-            { level: "Level 2: Discrimination", desc: "&ldquo;This is good, that isn&apos;t.&rdquo; You can tell quality from garbage. You have an eye. Measured by Curation and Restraint." },
+            { level: "Level 2: Discrimination", desc: "&ldquo;This is good, that isn&apos;t.&rdquo; You can tell quality from garbage. You have an eye. Measured by Curation and Intentionality." },
             { level: "Level 3: Vision", desc: "&ldquo;This doesn&apos;t exist yet, but it should.&rdquo; Taste becomes generative, not just selective. Measured by Originality and Conviction." },
             { level: "Level 4: Identity", desc: "&ldquo;I couldn&apos;t have made this any other way.&rdquo; Work and person are inseparable. Measured by Identity and Self-Awareness." },
           ].map((l, i) => (
@@ -158,7 +158,7 @@ export default function MethodologyPage() {
       <section className="mb-16">
         <h2 className="font-serif text-2xl font-semibold mb-4">Composite Score</h2>
         <p className="text-ink/50 text-[15px] leading-relaxed mb-6">
-          The composite Taste Score is a level-weighted average. Identity and Self-Awareness weigh heaviest (20% each) because they represent the deepest expression of taste — taste as self. Level 3 dimensions (Originality, Conviction) carry 17.5% each, while Level 2 dimensions (Curation, Restraint) carry 12.5% each.
+          The composite Taste Score is a level-weighted average. Identity and Self-Awareness weigh heaviest (20% each) because they represent the deepest expression of taste — taste as self. Level 3 dimensions (Originality, Conviction) carry 17.5% each, while Level 2 dimensions (Curation, Intentionality) carry 12.5% each.
         </p>
         <div className="border border-border rounded-xl overflow-hidden">
           <table className="w-full text-sm">
