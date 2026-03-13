@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { saveScore, updatePendingStatus, removePending } from "@/lib/leaderboard";
-import { fetchScreenshotAsBase64 } from "@/lib/scrape";
-import { ScoreResult, ScreenshotImage } from "@/lib/types";
+import { ScoreResult } from "@/lib/types";
 import { judgeSchema } from "@/lib/validation";
 import { runDimensionAnalysts, runWriter } from "@/lib/agents";
 import { runResearchAgent } from "@/lib/research-agent";
@@ -34,7 +33,7 @@ export async function POST(req: Request) {
         try {
           decrypt(settings.anthropic_api_key);
           // TODO: pass to research agent and dimension analysts
-        } catch (e: any) {
+        } catch {
           return NextResponse.json({ error: "Failed to decrypt API key" }, { status: 500 });
         }
       }

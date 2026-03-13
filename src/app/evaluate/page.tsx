@@ -9,7 +9,7 @@ const TOTAL_STEPS = 3;
 
 export default function EvaluatePage() {
   const router = useRouter();
-  const { user, loading: authLoading, isConfigured } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
 
   const [step, setStep] = useState(0);

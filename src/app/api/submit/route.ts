@@ -4,7 +4,6 @@ import { savePending } from "@/lib/leaderboard";
 import { submitSchema } from "@/lib/validation";
 import { generateUniqueSlug } from "@/lib/slug";
 import { createClient } from "@/lib/supabase-server";
-import { decrypt } from "@/lib/crypto";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export async function POST(req: Request) {
