@@ -20,13 +20,34 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shareToTwitter = () => {
-    const score = Math.round(data.score);
-    const handle = data.input?.twitter ? `@${data.input.twitter.replace(/^@/, "")}` : data.name;
-    const url = window.location.href;
-    const text = `${handle} just got benchmarked on The Taste Bench.\n\n${score}/100 — "${data.title}"\n${data.overallLevel || ""}\n\nHow does your taste stack up?`;
-    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-    window.open(tweetUrl, "_blank", "noopener,noreferrer");
+  const [generatingTweet, setGeneratingTweet] = useState(false);
+
+  const shareToTwitter = async () => {
+    setGeneratingTweet(true);
+    try {
+      const slug = data.slug || data.id;
+      const res = await fetch(`/api/generate-tweet/${slug}`);
+      if (res.ok) {
+        const { tweet, url } = await res.json();
+        const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}&url=${encodeURIComponent(url)}`;
+        window.open(tweetUrl, "_blank", "noopener,noreferrer");
+      } else {
+        // Fallback to basic tweet
+        const score = Math.round(data.score);
+        const handle = data.input?.twitter ? `@${data.input.twitter.replace(/^@/, "")}` : data.name;
+        const url = window.location.href;
+        const text = `${handle} scored ${score}/100 on The Taste Bench — "${data.title}"\n\nCheck your own taste →`;
+        const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+        window.open(tweetUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      // Fallback
+      const url = window.location.href;
+      const text = `Just got benchmarked on The Taste Bench. Check your own taste →`;
+      const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+      window.open(tweetUrl, "_blank", "noopener,noreferrer");
+    }
+    setGeneratingTweet(false);
   };
 
   const handleClaim = async () => {
@@ -192,9 +213,9 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
             Sign in to claim
           </a>
         )}
-        <button onClick={shareToTwitter} className="px-5 py-2.5 bg-[#1DA1F2] hover:bg-[#1a8cd8] text-white rounded-lg text-sm transition-colors flex items-center gap-2">
+        <button onClick={shareToTwitter} disabled={generatingTweet} className="px-5 py-2.5 bg-[#0f1419] hover:bg-[#2a2a2a] disabled:opacity-50 text-white rounded-lg text-sm transition-colors flex items-center gap-2">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          Share on X
+          {generatingTweet ? "Crafting tweet..." : "Share on X"}
         </button>
         <button onClick={copyLink} className="px-5 py-2.5 border border-border hover:border-ink/20 rounded-lg text-sm text-ink/50 hover:text-ink transition flex items-center gap-2">
           {copied ? "✓ Copied!" : "Copy Link"}
