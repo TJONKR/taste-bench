@@ -21,7 +21,7 @@ export default function ScoreCard({ data }: { data: ScoreResult }) {
   };
 
   const [generatingTweet, setGeneratingTweet] = useState(false);
-  const isAdmin = user?.email === "tijs@lerai.nl" || user?.email === "tijs@tjonkr.com";
+  const isAdmin = user?.email === "tijs@lerai.nl";
 
   // Regular users: template tweet
   const shareToTwitter = () => {
