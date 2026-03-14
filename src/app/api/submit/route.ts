@@ -4,7 +4,7 @@ import { savePending } from "@/lib/leaderboard";
 import { submitSchema } from "@/lib/validation";
 import { generateUniqueSlug } from "@/lib/slug";
 import { createClient } from "@/lib/supabase-server";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         userId = user.id;
 
         // Rate limit: max 10 evaluations per hour per user
-        if (isSupabaseConfigured && supabase) {
+        {
           const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
           const { count } = await supabase
             .from("evaluations")
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         }
 
         // Verify user has an API key (skip in dev with platform key)
-        if (isSupabaseConfigured && supabase && !(isDev && hasPlatformKey)) {
+        if (!(isDev && hasPlatformKey)) {
           const { data: settings } = await supabase
             .from("user_settings")
             .select("anthropic_api_key")

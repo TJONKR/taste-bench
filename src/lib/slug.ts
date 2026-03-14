@@ -1,5 +1,4 @@
-import { getDb } from "./db";
-import { supabase, isSupabaseConfigured } from "./supabase";
+import { supabase } from "./supabase";
 
 /**
  * Generate a URL slug from a name.
@@ -57,30 +56,19 @@ export async function generateUniqueSlug(name: string): Promise<string> {
 }
 
 async function slugExists(slug: string): Promise<boolean> {
-  // Check Supabase first if configured
-  if (isSupabaseConfigured && supabase) {
-    const { data: evalData } = await supabase
-      .from("evaluations")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle();
-    if (evalData) return true;
+  const { data: evalData } = await supabase
+    .from("evaluations")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (evalData) return true;
 
-    const { data: pendingData } = await supabase
-      .from("pending_jobs")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle();
-    if (pendingData) return true;
+  const { data: pendingData } = await supabase
+    .from("pending_jobs")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (pendingData) return true;
 
-    return false;
-  }
-
-  // SQLite fallback
-  const db = getDb();
-  const evalRow = db.prepare("SELECT id FROM evaluations WHERE slug = ?").get(slug);
-  if (evalRow) return true;
-  const pendingRow = db.prepare("SELECT id FROM pending_jobs WHERE slug = ?").get(slug);
-  if (pendingRow) return true;
   return false;
 }

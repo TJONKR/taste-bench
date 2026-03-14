@@ -3,8 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey && supabaseUrl !== "your-supabase-url" && supabaseKey !== "your-service-role-key");
+if (!supabaseUrl || !supabaseKey || supabaseUrl === "your-supabase-url" || supabaseKey === "your-service-role-key") {
+  console.warn("Supabase not configured — set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
+}
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseKey!)
-  : null;
+export const supabase = createClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseKey || "placeholder",
+);

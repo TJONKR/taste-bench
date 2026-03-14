@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/components/AuthProvider";
 import { createClient } from "@/lib/supabase-browser";
@@ -8,7 +8,16 @@ import { createClient } from "@/lib/supabase-browser";
 const TOTAL_STEPS = 3;
 
 export default function EvaluatePage() {
+  return (
+    <Suspense>
+      <EvaluatePageInner />
+    </Suspense>
+  );
+}
+
+function EvaluatePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
 
@@ -16,7 +25,7 @@ export default function EvaluatePage() {
   const [direction, setDirection] = useState(1);
 
   // Form data
-  const [name, setName] = useState("");
+  const [name, setName] = useState(searchParams.get("name") || "");
   const [twitter, setTwitter] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [website, setWebsite] = useState("");
@@ -99,8 +108,10 @@ export default function EvaluatePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ anthropicApiKey: apiKey }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error("Server error — please try again"); }
+      if (!res.ok) throw new Error(data.error || "Validation failed");
       setHasKey(true);
       setApiKey("");
     } catch (e: any) {

@@ -6,7 +6,7 @@ import { judgeSchema } from "@/lib/validation";
 import { runDimensionAnalysts, runWriter } from "@/lib/agents";
 import { runResearchAgent } from "@/lib/research-agent";
 import { decrypt } from "@/lib/crypto";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export const maxDuration = 300; // 5 min (Vercel hobby plan limit)
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const slug = inputSlug || "";
 
     // Resolve BYOK API key if userId provided
-    if (userId && isSupabaseConfigured && supabase) {
+    if (userId) {
       const { data: settings } = await supabase
         .from("user_settings")
         .select("anthropic_api_key")

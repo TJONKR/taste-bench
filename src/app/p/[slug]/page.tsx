@@ -168,13 +168,20 @@ export default function ProfilePage() {
     );
   }
 
-  // Not found
+  // Not found — show as empty profile page
   if (pageState === "not-found") {
+    const nameFromSlug = typeof slug === "string" ? slug.replace(/-/g, " ") : "";
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="font-serif text-2xl font-semibold text-ink/60">Evaluation not found</h1>
-          <a href="/" className="text-accent mt-4 inline-block hover:text-accent-hover text-sm transition">← Back home</a>
+        <div className="text-center space-y-4">
+          <h1 className="font-serif text-2xl font-semibold text-ink capitalize">{nameFromSlug}</h1>
+          <p className="text-ink/30 text-sm">No evaluation yet.</p>
+          <a
+            href={`/evaluate?name=${encodeURIComponent(nameFromSlug)}`}
+            className="inline-block px-6 py-2.5 bg-accent hover:bg-accent-hover rounded-lg text-sm font-medium text-white transition-all"
+          >
+            Evaluate {nameFromSlug || "this person"}
+          </a>
         </div>
       </main>
     );

@@ -46,8 +46,10 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ anthropicApiKey: apiKey }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error("Server error — please try again"); }
+      if (!res.ok) throw new Error(data.error || "Validation failed");
       setHasKey(true);
       setKeyValidatedAt(new Date().toISOString());
       setApiKey("");
